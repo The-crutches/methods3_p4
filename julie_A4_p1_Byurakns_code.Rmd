@@ -53,9 +53,52 @@ The data files can be found here: https://www.dropbox.com/sh/bvvk7t3fvsplh9o/AAD
 - Add a column for study, group, trial and condition
 
 ```{r}
-# Load the libraries
-# Load the file
-# Plot
+library(pacman)
+p_load(tidyverse, tidymodels, fs, groupdata2, dplyr)
+```
+
+
+```{r}
+# Load the file, so study1_G1_T1-3
+
+read_HR <- function(filename) {
+    # getting filenames and subsetting them
+    files = path_file(path = filename) 
+    
+    for (file in filename){
+    title = file
+    }
+    # creating dataframes, loading data and and merging the df's
+    df = data_frame(title)
+    df1 = read_csv(filename)
+    data = merge(df, df1)
+
+    # combine all this data in one dataset
+    return(data)
+}
+
+# test it on just one file while writing the function
+test_data = read_HR("~/Uni stuff/Expmeth3/methods3_p4/data/Study2_G5_T1_Synchronous.csv")
+
+
+# apply for all data, just change pattern to get all the files
+data <- list.files(path = './data', pattern = 'Study2_G5_.', all.files = T, full.names = T) %>% 
+    purrr::map_df(read_HR)
+
+data$title <- as.factor(data$title)
+levels(data$title)
+
+#plot
+ggplot(data = data) + 
+  geom_path(aes(time, HR1, color = "P1")) + 
+  geom_path(aes(time, HR2, color = "P2")) + 
+  labs(x = "time", y = "HR") + 
+  facet_grid(~title, scales = 'free')
+
+```
+
+
+```{r}
 ## Remove outliers
 ### Tip, check the function below. This is the function explained in the video lecture
 removeOuts <- function(ts,threshold){
@@ -65,28 +108,119 @@ removeOuts <- function(ts,threshold){
              (threshold*sd(ts,na.rm=T)))] = mean(ts,na.rm=T)
   return(ts)
 }
-threshold=2.5 # Default value at 2.5 sds from the mean. But you can increase it, if you want.
+threshold=2.5# Default value at 2.5 sds from the mean. But you can increase it, if you want.
+
+removeOuts(data$Resp1, 2.5)
+removeOuts(data$Resp2, 2.5)
+removeOuts(data$HR1, 2.5)
+removeOuts(data$HR2, 2.5)
+removeOuts(data$ECG1, 2.5)
+removeOuts(data$ECG2, 2.5)
+
+ggplot(data = data) + 
+  geom_path(aes(time, HR1, color = "P1")) + 
+  geom_path(aes(time, HR2, color = "P2")) + 
+  labs(x = "time", y = "HR") + 
+  facet_grid(~title, scales = 'free')
+
+
+
+
+
+
 # Plot raw data against those with the artifacts removed
+
 ## Scale
+
+
 ### Tip: if scale() gives some issues, try the one below
-#z_scale <- function(column){
-#  column_c <- (column - mean(column)) / sd(column)
-#}
+z_scale <- function(column){
+  column_c <- (column - mean(column)) / sd(column)
+}
+
 # Plot again to check how scaled data look like
 ## Downsample
+
 ### You can use the code below. It is almost the same as the one in the video lecture.
-#d1 = d %>%
-#  group(n = 100, method = 'greedy') %>%
-#  dplyr::summarise(
-#    time = mean(time,na.rm=T),
-#    HR1 = mean(HR1S,na.rm=T),
-#    HR2 = mean(HR2S,na.rm=T),
-#    Resp1 = mean(Resp1S,na.rm=T),
-#    Resp2 = mean(Resp2S,na.rm=T),
-#    rowname = rowname[1]) #the index we use to put them back together 
+
+data1 <-data %>%
+  group(n = 100, method = 'greedy') %>%
+  dplyr::summarise(
+    time = mean(time,na.rm=T),
+    HR1 = mean(HR1,na.rm=T),
+    HR2 = mean(HR2,na.rm=T),
+    Resp1 = mean(Resp1,na.rm=T),
+    Resp2 = mean(Resp2,na.rm=T))
+
+# scale
+data1 <- data1 %>% mutate_if(is.numeric, scale)
+data <- data %>% mutate_if(is.numeric, scale)
+
+    
+    
+    
 ## Plot the downsampled data. You can use the code from the slides
+
+
+ggplot(data = data1) + 
+  geom_path(aes(time, HR1, color = "P1")) + 
+  geom_path(aes(time, HR2, color = "P2")) + 
+  labs(x = "time", y = "HR") + 
+  facet_grid(~.groups, scales = 'free')
+
+
 ## Now add the group, trial, condition to the cleaned up, scaled, downsampled data
 ## Tip the info is in the file name
+```
+
+## NANNA
+```{r}
+
+```{r}
+### Tip, check the function below. This is the function explained in the video lecture
+removeOuts <- function(ts,threshold){
+  ts[ts > (mean(ts,na.rm=T) +
+             (threshold*sd(ts,na.rm=T))) | 
+       ts < (mean(ts,na.rm=T) -
+             (threshold*sd(ts,na.rm=T)))] = mean(ts,na.rm=T)
+  return(ts)
+}
+#Setting treshold, Default value at 2.5 sds from the mean. But you can increase it, if you want
+threshold=2.5 
+
+#Creating columns for data without outliers
+data <- data %>% 
+  mutate(HR1_c = removeOuts(HR1, threshold),
+        HR2_c = removeOuts(HR2, threshold),
+        Resp1_c = removeOuts(Resp1, threshold),
+        Resp2_c = removeOuts(Resp2, threshold))
+
+```
+
+```{r}
+## Scale
+### Tip: if scale() gives some issues, try the one below
+z_scale <- function(column){
+  column_c <- (column - mean(column)) / sd(column)
+}
+
+#creating new columns with scaled data
+data <- data %>% 
+  mutate(HR1_sc = z_scale(HR1_c),
+        HR2_sc = z_scale(HR2_c),
+        Resp1_sc = z_scale(Resp1_c),
+        Resp2_sc = z_scale(Resp2_c))
+
+# Plot again to check how scaled data look like
+ggplot(data = data) + 
+  geom_path(aes(time, HR1_sc, color = "P1")) + 
+  geom_path(aes(time, HR2_sc, color = "P2")) + 
+  labs(x = "time", y = "HR") + 
+  facet_grid(~Trial, scales = 'free')
+#very nice and very messy
+
+```
+
 ```
 
 
