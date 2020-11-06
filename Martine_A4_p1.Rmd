@@ -54,8 +54,9 @@ The data files can be found here: https://www.dropbox.com/sh/bvvk7t3fvsplh9o/AAD
 
 ```{r}
 # Load the libraries
-pacman::p_load(tidyverse, tidymodels, fs, groupdata2, dplyr, purrr)
+pacman::p_load(tidyverse, purrr)
 # Load the file
+df <- read_csv("Study1_G1_T1_Synchronous.csv")
 # Plot
 ## Remove outliers
 ### Tip, check the function below. This is the function explained in the video lecture
@@ -66,13 +67,16 @@ removeOuts <- function(ts,threshold){
              (threshold*sd(ts,na.rm=T)))] = mean(ts,na.rm=T)
   return(ts)
 }
-threshold=2.5 # Default value at 2.5 sds from the mean. But you can increase it, if you want.
+threshold=2.5# Default value at 2.5 sds from the mean. But you can increase it, if you want.
+removeOuts(df$HR1, 2.5)
 # Plot raw data against those with the artifacts removed
+
 ## Scale
 ### Tip: if scale() gives some issues, try the one below
 #z_scale <- function(column){
 #  column_c <- (column - mean(column)) / sd(column)
 #}
+
 # Plot again to check how scaled data look like
 ## Downsample
 ### You can use the code below. It is almost the same as the one in the video lecture.
@@ -87,12 +91,17 @@ threshold=2.5 # Default value at 2.5 sds from the mean. But you can increase it,
 #    rowname = rowname[1]) #the index we use to put them back together 
 ## Plot the downsampled data. You can use the code from the slides
 ## Now add the group, trial, condition to the cleaned up, scaled, downsampled data
-## Tip the info is in the file name
+
 pattern <- "Study(\\d+)_G(\\d+)_T(\\d+)_(\\w+)"
 
 id_stuff <- str_match("Study1_G1_T1_Synchronous.csv", pattern) %>% 
   as.data.frame() %>%
   rename("study" = "V2" , "group" = "V3", "trial" = "V4", "type" = "V5")
+
+
+
+## Tip the info is in the file name
+
 ```
 
 
@@ -120,17 +129,20 @@ data_preprocess <- function(filename, threshold = 2.5){
   #Info adding
   
   #ID making
-    # 100*study + group
+    # 100*study + group 
+ 
+  
   return(d1)
 }
 #  Identify all files to be read
 # Run the function on the whole dataset using map_df
-         
+        
 # Now we need to make sure all the data are meaningful or something has to be removed
 # E.g. "Study1_G1_T1_Synchronous" has one bad respiration signal. We could replace it with NAs
 # plots plots plots
 # Remove bad data
 # Save the data
+
 ```
 
 ## Now we need to run some analysis
