@@ -1,7 +1,7 @@
 ---
 title: "Assignment 4 - Heart rate, respiration and interpersonal coordination"
-author: "Riccardo Fusaroli"
-date: "August 20, 2019"
+author: "Study group 4"
+date: "November 25, 2020"
 output: html_document
 ---
 
