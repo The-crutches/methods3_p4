@@ -54,8 +54,7 @@ The data files can be found here: https://www.dropbox.com/sh/bvvk7t3fvsplh9o/AAD
 
 ```{r}
 library(pacman)
-install.packages('plyr')
-p_load(tidyverse, tidymodels, fs, groupdata2, dplyr, plyr)
+p_load(tidyverse, tidymodels, fs, groupdata2, dplyr, plyr, tidyselect)
 ```
 
 
@@ -85,8 +84,8 @@ test_data = read_HR("Study1_G1_T1_Synchronous.csv")
 data <- list.files(path = './data', pattern = 'Study1_G1', all.files = T, full.names = T) %>% 
     purrr::map_df(read_HR)
 
-data$title <- as.factor(data$title)
-levels(HR_data$title)
+data$V5 <- as.factor(data$V5)
+levels(data$V5)
 
 #plot
 ggplot(data = data) + 
@@ -177,29 +176,38 @@ ggplot(data = data) +
 ## Downsample
 
 ### You can use the code below. It is almost the same as the one in the video lecture.
+data$title <- as.numeric(data$title)
+
 data1 <- data %>%
-  group(n = 100, method = 'greedy') %>%
+  group(n = 6379, method = 'n_dist') %>%
   dplyr::summarise(
     time = mean(time,na.rm=T),
     HR1_sc = mean(HR1_sc,na.rm=T),
     HR2_sc = mean(HR2_sc,na.rm=T),
     Resp1_sc = mean(Resp1_sc,na.rm=T),
-    Resp2_sc = mean(Resp2_sc,na.rm=T))
-  #the index we use to put them back together
-
-#d1 = d %>%
-#  group(n = 100, method = 'greedy') %>%
-#  dplyr::summarise(
-#    time = mean(time,na.rm=T),
-#    HR1 = mean(HR1S,na.rm=T),
-#    HR2 = mean(HR2S,na.rm=T),
-#    Resp1 = mean(Resp1S,na.rm=T),
-#    Resp2 = mean(Resp2S,na.rm=T),
-#    rowname = rowname[1])
+    Resp2_sc = mean(Resp2_sc,na.rm=T),
+    title = median(title))
 
 ## Plot the downsampled data. You can use the code from the slides
+
+# why is this plot weird?
+ggplot(data = data1) + 
+  geom_path(aes(time, HR1_sc, color = "P1")) + 
+  geom_path(aes(time, HR2_sc, color = "P2")) + 
+  labs(x = "time", y = "HR") + 
+  facet_grid(~title, scales = 'free')
+
+k <- data1 %>% filter(title == 3) %>% arrange(time)
+
+
 ## Now add the group, trial, condition to the cleaned up, scaled, downsampled data
-## Tip the info is in the file name
+
+pattern <- "Study(\\d+)_G(\\d+)_T(\\d+)_(\\w+)"
+
+id_stuff <- str_match(files, pattern = "Study(\\d+)_G(\\d+)_T(\\d+)_(\\w+)") %>% 
+  as.data.frame() %>%
+  rename("study" = "V2" , "group" = "V3", "trial" = "V4", "type" = "V5")
+
 ```
 
 
@@ -213,17 +221,80 @@ A couple of tips:
 - each study restarts the group numbering, so you should make sure to change that (e.g. 100 * Study + Group)
 - you need to make sure all the data are meaningful or something has to be removed. Plotting is your friend. E.g. "Study1_G1_T1_Synchronous" has one bad respiration signal. We could replace it with NAs
 
+```{r}
+read_HR <- function(filename, threshold) {
+    
+  #getting filenames and subsetting them
+    files = path_file(path = filename) 
+    
+    for (file in filename){
+    IDdf <- str_match(files, pattern = "Study(\\d+)_G(\\d+)_T(\\d+)_(\\w+)")
+    }
+    
+    # loading data
+    df = read_csv(filename)
+                          # i manually renamed study 4 in the csv file, because it had a column named TimeMs instead of time. this will cause an error. 
+    
+    #downsample the data
+    df <- df %>% 
+      group(n = 100, method = 'greedy') %>% 
+      dplyr::summarise(across(where(is.numeric), mean, na.rm = T))
+
+    #merge after downsampling in order to get the columns from filename
+    data = merge(IDdf, df)
+    data <- tibble(data)
+
+    #remove outs
+    data <- data %>% 
+      dplyr::mutate(across(where(is.numeric) & !time, removeOuts, threshold))
+    
+    #scale the data
+    data <- data %>% 
+      dplyr::mutate(across(where(is.numeric) & !time, z_scale))
+    
+    #clean the frame
+      #renaming columns
+    data <- data %>% dplyr::rename(
+      file = V1, 
+      study = V2,
+      group = V3,
+      trial = V4,
+      type = V5
+      )
+      
+      #pasting to group name for unique group id
+      data$group <- paste0(data$study, data$group)
+      data$.groups <- NULL
+      
+      #correcting classes
+      data <- data %>% 
+        dplyr::mutate(across(where(is.character), as.factor))
+    
+    # combine all this data in one dataset
+    return(data)
+}
+
+
+
+# test it on just one file while writing the function
+test_data = read_HR("Study1_G1_T1_Synchronous.csv", 2.5)
+
+# apply for all data, just change pattern to get all the files
+data <- list.files(path = './data', pattern = '.csv', all.files = T, full.names = T) %>% 
+    purrr::map_df(read_HR, 2.5)
+
+
+data <- data %>% select(-ECG1, -ECG2, -ReadingStart, -ReadingStop, -min, -Signal1, -Signal2)
+
+# i think we will write to csv here, so we can always reload the data. 
+  
+#write_csv(data, 'HR_data.csv')
+```
+
+
 
 ```{r}
-# Define a function running the loading, artifact removal, scaling, downsampling, info adding.
-data_preprocess <- function(filename, threshold = 2.5){
-  
-  # To be filled in
-  
-  return(d1)
-}
-#  Identify all files to be read
-# Run the function on the whole dataset using map_df
+
          
 # Now we need to make sure all the data are meaningful or something has to be removed
 # E.g. "Study1_G1_T1_Synchronous" has one bad respiration signal. We could replace it with NAs
