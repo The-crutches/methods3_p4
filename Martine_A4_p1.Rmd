@@ -196,7 +196,93 @@ HR_data <- list.files(path = "\data", pattern = "Study1_G1", all.files = T, full
 # plots plots plots
 # Remove bad data
 # Save the data
+?path_file
 
+
+read_study4 <- function(filename) {
+    
+  #getting filenames and subsetting them
+    files = path_file(path = filename) 
+
+    # loading data
+    df = read_csv(filename)
+    
+    df <- df %>% dplyr::rename(
+      time = TimeMs)
+    
+    df <- df %>% 
+      mutate(time = time/60000)}
+
+read_HR <- function(filename, threshold) {
+    
+  #getting filenames and subsetting them
+    files = path_file(path = filename) 
+    
+    for (file in filename){
+    IDdf <- str_match(files, pattern = "Study(\\d+)_G(\\d+)_T(\\d+)_(\\w+)")
+    }
+    
+    # loading data
+    df = read_csv(filename)
+    
+    df %>% if(study == 4){}
+                          # i manually renamed study 4 in the csv file, because it had a column named TimeMs instead of time. this will cause an error. 
+    
+    #downsample the data
+    df <- df %>% 
+      group(n = 100, method = 'greedy') %>% 
+      dplyr::summarise(across(where(is.numeric), mean, na.rm = T))
+
+    #merge after downsampling in order to get the columns from filename
+    data = merge(IDdf, df)
+    data <- tibble(data)
+
+    #remove outs
+    data <- data %>% 
+      dplyr::mutate(across(where(is.numeric) & !time, removeOuts, threshold))
+    
+    #scale the data
+    data <- data %>% 
+      dplyr::mutate(across(where(is.numeric) & !time, z_scale))
+    
+    #clean the frame
+      #renaming columns
+    data <- data %>% dplyr::rename(
+      file = V1, 
+      study = V2,
+      group = V3,
+      trial = V4,
+      type = V5
+      )
+      
+      #pasting to group name for unique group id
+      data$group <- paste0(data$study, data$group)
+      data$.groups <- NULL
+      
+      #correcting classes
+      data <- data %>% 
+        dplyr::mutate(across(where(is.character), as.factor))
+    
+    # combine all this data in one dataset
+    return(data)
+}
+
+
+
+# test it on just one file while writing the function
+test_data = read_HR("Study1_G1_T1_Synchronous.csv", 2.5)
+
+# apply for all data, just change pattern to get all the files
+study4data <- list.files(path = './data', pattern = 'Study4', all.files = T, full.names = T) %>% 
+    purrr::map_df(read_study4)
+
+data <- list.files(path = './data', pattern = '.csv', all.files = T, full.names = T) %>% 
+    purrr::map_df(read_HR)
+
+```
+
+```{r}
+data <- read_csv("HR_data.csv")
 ```
 
 ## Now we need to run some analysis
