@@ -55,10 +55,51 @@ The data files can be found here: https://www.dropbox.com/sh/bvvk7t3fvsplh9o/AAD
 ```{r}
 # Load the libraries
 pacman::p_load(tidyverse, tidymodels, fs, groupdata2, dplyr, purrr)
+
 # Load the file
+pattern <- "Study(\\d+)_G(\\d+)_T(\\d+)_(\\w+)"
+
+read_HR_test <- function(filename) {
+    # getting filenames and subsetting them
+    files = path_file(path = filename) 
+    
+    for (file in filename){
+    id_stuff <- str_match(filename, pattern) %>% 
+      as.data.frame() %>% 
+      dplyr::rename(
+        file = V1,
+        study = V2,
+        group = V3,
+        trial = V4,
+        type = V5
+      )
+    }
+    # creating dataframes, loading data and and merging the df's
+    #df = data_frame(title)
+    df1 = read_csv(filename)
+    data = merge(df1, id_stuff)
+
+    # combine all this data in one dataset
+    return(data)
+}
+
+#testing on only one file
+test_data = read_HR_test("data/Study1_G1_T1_Synchronous.csv")
+
+#Combining the three files to the test_data
+test_data <- list.files(path = './data', pattern = 'Study1_G1', all.files = T, full.names = T) %>% 
+    purrr::map_df(read_HR_test)
+
+
 # Plot
+ggplot(data = test_data) + 
+  geom_path(aes(time, HR1, color = "P1")) + 
+  geom_path(aes(time, HR2, color = "P2")) + 
+  labs(x = "time", y = "HR") + facet_grid(~file, scales = 'free')
+
 ## Remove outliers
 ### Tip, check the function below. This is the function explained in the video lecture
+
 removeOuts <- function(ts,threshold){
   ts[ts > (mean(ts,na.rm=T) +
              (threshold*sd(ts,na.rm=T))) | 
@@ -66,33 +107,56 @@ removeOuts <- function(ts,threshold){
              (threshold*sd(ts,na.rm=T)))] = mean(ts,na.rm=T)
   return(ts)
 }
-threshold=2.5 # Default value at 2.5 sds from the mean. But you can increase it, if you want.
-# Plot raw data against those with the artifacts removed
-## Scale
-### Tip: if scale() gives some issues, try the one below
-#z_scale <- function(column){
-#  column_c <- (column - mean(column)) / sd(column)
-#}
-# Plot again to check how scaled data look like
-## Downsample
-### You can use the code below. It is almost the same as the one in the video lecture.
-#d1 = d %>%
-#  group(n = 100, method = 'greedy') %>%
-#  dplyr::summarise(
-#    time = mean(time,na.rm=T),
-#    HR1 = mean(HR1S,na.rm=T),
-#    HR2 = mean(HR2S,na.rm=T),
-#    Resp1 = mean(Resp1S,na.rm=T),
-#    Resp2 = mean(Resp2S,na.rm=T),
-#    rowname = rowname[1]) #the index we use to put them back together 
-## Plot the downsampled data. You can use the code from the slides
-## Now add the group, trial, condition to the cleaned up, scaled, downsampled data
-## Tip the info is in the file name
-pattern <- "Study(\\d+)_G(\\d+)_T(\\d+)_(\\w+)"
 
-id_stuff <- str_match("Study1_G1_T1_Synchronous.csv", pattern) %>% 
-  as.data.frame() %>%
-  rename("study" = "V2" , "group" = "V3", "trial" = "V4", "type" = "V5")
+# Default value at 2.5 sds from the mean. But you can increase it, if you want.
+
+test_data_removeOuts <- test_data %>% 
+      dplyr::mutate(across(where(is.numeric) & !time, removeOuts, 3))
+
+#creating dataframe for plotting 
+one <- test_data %>% select(time, HR1, HR2, file)
+two <- test_data_removeOuts %>% select(time, HR1, HR2, file) %>% rename(
+  HR1_1 = HR1, 
+  HR2_2 = HR2)
+
+plot_data <- merge(one, two)
+
+# Plot raw data against those with the artifacts removed
+ggplot(data = plot_data) + 
+  geom_path(aes(time, HR1, color = "P1")) + 
+  geom_path(aes(time, HR2, color = "P2")) +
+  geom_path(aes(time, HR1_1, color = "P3")) + 
+  geom_path(aes(time, HR2_2, color = "P4")) + 
+  labs(x = "time", y = "HR") + 
+  facet_grid(~file, scales = 'free')
+
+## Scale
+z_scale <- function(column){
+  column_c <- (column - mean(column)) / sd(column)
+}
+test_data_scale <- two %>% mutate_if(is.numeric, z_scale)
+
+# Plot again to check how scaled data look like
+#Plots
+ggplot(data = test_data_scale) + 
+  geom_path(aes(time, HR1_1, color = "P1")) + 
+  geom_path(aes(time, HR2_2, color = "P2")) +
+  labs(x = "time", y = "HR") + 
+  facet_grid(~file, scales = 'free')
+
+## Downsample
+test_data_down <- test_data %>% 
+  group(n = 1000, method = 'greedy') %>% 
+  dplyr::summarise(across(where(is.numeric), mean, na.rm = T))
+
+## Plot the downsampled data. You can use the code from the slides
+  ###HELP PLOTTING THIS 
+ggplot(data = test_data_down) + 
+  geom_path(aes(time, HR1, color = "P1")) + 
+  geom_path(aes(time, HR2, color = "P2")) +
+  labs(x = "time", y = "HR") + 
+  facet_grid(~file, scales = 'free')
+
 ```
 
 
@@ -109,22 +173,68 @@ A couple of tips:
 
 ```{r}
 # Define a function running the loading, artifact removal, scaling, downsampling, info adding.
-data_preprocess <- function(filename, threshold = 2.5){
-  #Loading file 
-  #Downsampling
-  #Artifact removal
-  removeOuts()
-  #Scaling 
-  scale()
+read_HR <- function(filename, threshold) {
+    
+  #getting filenames and subsetting them
+    files = path_file(path = filename) 
+    
+    for (file in filename){
+    IDdf <- str_match(files, pattern = "Study(\\d+)_G(\\d+)_T(\\d+)_(\\w+)")
+    }
+    
+    # loading data
+    df = read_csv(filename)
+                          # i manually renamed study 4 in the csv file, because it had a column named TimeMs instead of time. this will cause an error. 
+    
+    #downsample the data
+    df <- df %>% 
+      group(n = 1000, method = 'greedy') %>% 
+      dplyr::summarise(across(where(is.numeric), mean, na.rm = T))
 
-  #Info adding
-  
-  #ID making
-    # 100*study + group
-  return(d1)
+    #merge after downsampling in order to get the columns from filename
+    data = merge(IDdf, df)
+    data <- tibble(data)
+
+    #remove outs
+    data <- data %>% 
+      dplyr::mutate(across(where(is.numeric) & !time, removeOuts, threshold))
+    
+    #scale the data
+    data <- data %>% 
+      dplyr::mutate(across(where(is.numeric) & !time, z_scale))
+    
+    #clean the frame
+      #renaming columns
+    data <- data %>% dplyr::rename(
+      file = V1, 
+      study = V2,
+      group = V3,
+      trial = V4,
+      type = V5
+      )
+      
+      #pasting to group name for unique group id
+      data$group <- paste0(data$study, data$group)
+      data$.groups <- NULL
+      
+      #correcting classes
+      data <- data %>% 
+        dplyr::mutate(across(where(is.character), as.factor))
+    
+    # combine all this data in one dataset
+    return(data)
 }
+
 #  Identify all files to be read
 # Run the function on the whole dataset using map_df
+
+test_data_HR = read_HR("Study1_G1_T1_Synchronous.csv", 2.5)
+
+# apply for all data, just change pattern to get all the files
+data <- list.files(path = './data', pattern = '.csv', all.files = T, full.names = T) %>% 
+    purrr::map_df(read_HR, 2.5)
+
+data <- data %>% select(-ECG1, -ECG2, -ReadingStart, -ReadingStop, -min, -Signal1, -Signal2)
          
 # Now we need to make sure all the data are meaningful or something has to be removed
 # E.g. "Study1_G1_T1_Synchronous" has one bad respiration signal. We could replace it with NAs
