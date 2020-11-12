@@ -237,7 +237,7 @@ read_HR <- function(filename, threshold) {
     
     #downsample the data
     df <- df %>% 
-      group(n = 100, method = 'greedy') %>% 
+      group(n = 1000, method = 'greedy') %>% 
       dplyr::summarise(across(where(is.numeric), mean, na.rm = T))
 
     #merge after downsampling in order to get the columns from filename
@@ -276,6 +276,8 @@ read_HR <- function(filename, threshold) {
 
 
 
+
+
 # test it on just one file while writing the function
 test_data = read_HR("Study1_G1_T1_Synchronous.csv", 2.5)
 
@@ -286,20 +288,58 @@ data <- list.files(path = './data', pattern = '.csv', all.files = T, full.names 
 
 data <- data %>% select(-ECG1, -ECG2, -ReadingStart, -ReadingStop, -min, -Signal1, -Signal2)
 
+#divide time by 60.0000 in study 3 and 4
+data$time <- ifelse(data$study == 3, data$time /60000, data$time)
+data$time <- ifelse(data$study == 4, data$time /60000, data$time)
+
+
 # i think we will write to csv here, so we can always reload the data. 
-  
-#write_csv(data, 'HR_data.csv')
+
+write_csv(data, 'HR_data1.csv')
 ```
 
 
 
 ```{r}
 
-         
+df <- read_csv('HR_data.csv') 
+
+df <- df %>% 
+        dplyr::mutate(across(where(is.character), as.factor))
+
+df <- df %>% mutate(
+  study = as.factor(df$study),
+  group = as.factor(df$group),
+  trial = as.factor(df$trial)
+  )
+
 # Now we need to make sure all the data are meaningful or something has to be removed
 # E.g. "Study1_G1_T1_Synchronous" has one bad respiration signal. We could replace it with NAs
+
+described <- df %>% split(df$file) %>% map(summary) 
+
 # plots plots plots
+
+# there are 27 groups
+x <- df %>% split(df$group)
+
+# plot data for one group at a time?
+  # and what about respiration? do the same?
+x1 <- x$`11`
+x1 <- x$`48`
+x1 <- x$`41`
+
+k <- ggplot(data = x1) + 
+  geom_path(aes(time, HR1, color = "P1")) + 
+  geom_path(aes(time, HR2, color = "P2")) + 
+  labs(x = "time", y = "HR") +
+  facet_wrap( ~file, scales = 'free')
+k
+
 # Remove bad data
+
+  # time is really on a horrible scale for study 4
+
 # Save the data
 ```
 
