@@ -54,7 +54,7 @@ The data files can be found here: https://www.dropbox.com/sh/bvvk7t3fvsplh9o/AAD
 
 ```{r}
 # Load the libraries
-pacman::p_load(tidyverse, tidymodels, fs, groupdata2, dplyr, purrr)
+pacman::p_load(tidyverse, tidymodels, fs, groupdata2, dplyr, purrr, naniar)
 
 # Load the file
 pattern <- "Study(\\d+)_G(\\d+)_T(\\d+)_(\\w+)"
@@ -150,7 +150,7 @@ test_data_down <- test_data %>%
   dplyr::summarise(across(where(is.numeric), mean, na.rm = T))
 
 ## Plot the downsampled data. You can use the code from the slides
-  ###HELP PLOTTING THIS 
+
 ggplot(data = test_data_down) + 
   geom_path(aes(time, HR1, color = "P1")) + 
   geom_path(aes(time, HR2, color = "P2")) +
@@ -217,6 +217,9 @@ read_HR <- function(filename, threshold) {
       data$group <- paste0(data$study, data$group)
       data$.groups <- NULL
       
+      #Add surrogate time column 
+      data$time_new <- 1:nrow(data)
+      
       #correcting classes
       data <- data %>% 
         dplyr::mutate(across(where(is.character), as.factor))
@@ -231,16 +234,80 @@ read_HR <- function(filename, threshold) {
 test_data_HR = read_HR("Study1_G1_T1_Synchronous.csv", 2.5)
 
 # apply for all data, just change pattern to get all the files
-data <- list.files(path = './data', pattern = '.csv', all.files = T, full.names = T) %>% 
-    purrr::map_df(read_HR, 2.5)
+#data <- list.files(path = './data', pattern = '.csv', all.files = T, full.names = T) %>% 
+   # purrr::map_df(read_HR, 2.5)
 
 data <- data %>% select(-ECG1, -ECG2, -ReadingStart, -ReadingStop, -min, -Signal1, -Signal2)
-         
+
+#Loading the cleaned data 
+
+data <- read_csv("HR_data1.csv")
+```
+
+
+```{r}
+
 # Now we need to make sure all the data are meaningful or something has to be removed
-# E.g. "Study1_G1_T1_Synchronous" has one bad respiration signal. We could replace it with NAs
-# plots plots plots
-# Remove bad data
+
+  #This group has Nan in every column, we remove it
+data <- data %>%
+  filter(file != 'Study2_G7_T3_TurnTaking')
+
+#We count the number of dublicated values so that we know that the values occuring more than 5 times can be removed (counted as bad data)
+  
+  #This is for HR1 
+    #Number of ocurrences of dublicated value
+n_occur <- data.frame(table(data$HR1))
+
+    #Making dataframe only for the files with duplicated numbers counted over 5 times
+df_HR1 <- data[data$HR1 %in% n_occur$Var1[n_occur$Freq > 5],]
+
+    #Making the values as list with unique values
+HR1 <- unique(as.list(as.complex(df_HR1$HR1)))
+
+data <- data %>% 
+  replace_with_na_at(.vars = c("HR1"),
+                     condition = ~.x %in% HR1)
+
+  #For HR2 same procedure as ^^
+n_occur_2 <- data.frame(table(data$HR2))
+
+df_HR2 <- data[data$HR2 %in% n_occur_2$Var1[n_occur_2$Freq > 5],]
+
+HR2 <- unique(as.list(as.complex(df_HR2$HR2)))
+
+data <- data %>% 
+  replace_with_na_at(.vars = c("HR2"),
+                     condition = ~.x %in% HR2)
+
+  #For Resp1
+
+n_occur_3 <- data.frame(table(data$Resp1))
+
+df_Resp1 <- data[data$Resp1 %in% n_occur_3$Var1[n_occur_3$Freq > 5],]
+
+Resp1 <- unique(as.list(as.complex(df_Resp1$Resp1)))
+
+data <- data %>% 
+  replace_with_na_at(.vars = c("Resp1"),
+                     condition = ~.x %in% Resp1) 
+  
+  #For Resp2
+
+n_occur_4 <- data.frame(table(data$Resp2))
+
+df_resp2 <- data[data$Resp2 %in% n_occur_4$Var1[n_occur_4$Freq > 5],]
+
+Resp2 <- unique(as.list(as.complex(df_resp2$Resp2)))
+
+data <- data %>% 
+  replace_with_na_at(.vars = c("Resp2"),
+                     condition = ~.x %in% Resp2)
+
 # Save the data
+
+write_csv(data, "HR_data_na.csv")
+
 ```
 
 ## Now we need to run some analysis
