@@ -262,7 +262,7 @@ data <- data %>% select(-ECG1, -ECG2, -ReadingStart, -ReadingStop, -min, -Signal
 
 #Loading the cleaned data 
 
-#data <- read_csv("HR_data1.csv")
+#data <- read_csv("HR_data_raw.csv")
 ```
 
 
@@ -327,21 +327,15 @@ data <- data %>%
 
 sum(is.na(data))
 
-n_occur_3 <- data.frame(table(data$Resp1))
-df_Resp1 <- data[data$Resp1 %in% n_occur_3$Var1[n_occur_3$Freq > 5],]
-
-Resp1 <- as.list(df_Resp1$Resp1)
-Resp1 <- unique(Resp1)
-
-data <- data %>% 
-  replace_with_na_at(.vars = c("Resp1"),
-                     condition = ~.x %in% Resp1)
 # Save the data
 
-# write_csv(data, "HR_data_na.csv")
+# write_csv(data, "HR_data_na1.csv")
 
 ```
 
+```{r}
+data <- read_csv("HR_data_na1.csv")
+```
 
 ## Now we need to run some analysis
 
