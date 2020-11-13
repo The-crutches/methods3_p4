@@ -262,7 +262,7 @@ data <- data %>% select(-ECG1, -ECG2, -ReadingStart, -ReadingStop, -min, -Signal
 
 #Loading the cleaned data 
 
-data <- read_csv("HR_data1.csv")
+#data <- read_csv("HR_data1.csv")
 ```
 
 
@@ -284,7 +284,7 @@ n_occur <- data.frame(table(data$HR1))
 df_HR1 <- data[data$HR1 %in% n_occur$Var1[n_occur$Freq > 5],]
 
     #Making the values as list with unique values
-HR1_remove <- unique(as.list(as.complex(df_HR1$HR1)))
+HR1_remove <- unique(as.list(df_HR1$HR1))
 
 data <- data %>% 
   naniar::replace_with_na_at(.vars = c("HR1"),
@@ -295,7 +295,7 @@ n_occur_2 <- data.frame(table(data$HR2))
 
 df_HR2 <- data[data$HR2 %in% n_occur_2$Var1[n_occur_2$Freq > 5],]
 
-HR2_remove <- unique(as.list(as.complex(df_HR2$HR2)))
+HR2_remove <- unique(as.list(df_HR2$HR2))
 
 data <- data %>% 
   replace_with_na_at(.vars = c("HR2"),
@@ -307,7 +307,7 @@ n_occur_3 <- data.frame(table(data$Resp1))
 
 df_Resp1 <- data[data$Resp1 %in% n_occur_3$Var1[n_occur_3$Freq > 5],]
 
-Resp1_remove <- unique(as.list(as.complex(df_Resp1$Resp1)))
+Resp1_remove <- unique(as.list(df_Resp1$Resp1))
 
 data <- data %>% 
   naniar::replace_with_na_at(.vars = c("Resp1"),
@@ -319,18 +319,18 @@ n_occur_4 <- data.frame(table(data$Resp2))
 
 df_resp2 <- data[data$Resp2 %in% n_occur_4$Var1[n_occur_4$Freq > 5],]
 
-Resp2_remove <- unique(as.list(as.complex(df_resp2$Resp2)))
+Resp2_remove <- unique(as.list(df_resp2$Resp2))
 
 data <- data %>% 
   replace_with_na_at(.vars = c("Resp2"),
                      condition = ~.x %in% Resp2_remove)
 
-sum(is.na(data$Resp1))
+sum(is.na(data))
 
 n_occur_3 <- data.frame(table(data$Resp1))
 df_Resp1 <- data[data$Resp1 %in% n_occur_3$Var1[n_occur_3$Freq > 5],]
 
-Resp1 <- as.list(as.complex(df_Resp1$Resp1))
+Resp1 <- as.list(df_Resp1$Resp1)
 Resp1 <- unique(Resp1)
 
 data <- data %>% 
@@ -342,54 +342,6 @@ data <- data %>%
 
 ```
 
-```{r}
-data_test <- data_test %>%
-  filter(file != 'Study2_G7_T3_TurnTaking')
-
-n_occur <- data.frame(table(data$HR1))
-df_HR1 <- data[data$HR1 %in% n_occur$Var1[n_occur$Freq > 5],]
-HR1 <- as.list(df_HR1$HR1)
-HR1 <- unique(HR1)
-
-data_test <- data_test %>% 
-  replace_with_na_at(.vars = c("HR1"),
-                     condition = ~.x %in% HR1)
-
-sum(is.na(data_test$HR2))
-
-n_occur_2 <- data.frame(table(data$HR2))
-df_HR2 <- data[data$HR2 %in% n_occur_2$Var1[n_occur_2$Freq > 5],]
-
-HR2 <- as.list(df_HR2$HR2)
-HR2 <- unique(HR2)
-
-data_test <- data_test %>% 
-  replace_with_na_at(.vars = c("HR2"),
-                     condition = ~.x %in% HR2)
-
-
-n_occur_3 <- data.frame(table(data$Resp1))
-df_Resp1 <- data[data$Resp1 %in% n_occur_3$Var1[n_occur_3$Freq > 5],]
-
-Resp1 <- as.list(df_Resp1$Resp1)
-Resp1 <- unique(Resp1)
-
-data_test <- data_test %>% 
-  replace_with_na_at(.vars = c("Resp1"),
-                     condition = ~.x %in% Resp1)
-
-sum(is.na(data_test))
-
-n_occur_4 <- data.frame(table(data$Resp2))
-df_resp2 <- data[data$Resp2 %in% n_occur_4$Var1[n_occur_4$Freq > 5],]
-
-Resp2 <- as.list(df_resp2$Resp2)
-Resp2 <- unique(Resp2)
-
-data_test <- data_test %>% 
-  replace_with_na_at(.vars = c("Resp2"),
-                     condition = ~.x %in% Resp2)
-```
 
 ## Now we need to run some analysis
 
