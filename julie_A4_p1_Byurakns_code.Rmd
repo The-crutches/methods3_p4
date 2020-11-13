@@ -54,7 +54,7 @@ The data files can be found here: https://www.dropbox.com/sh/bvvk7t3fvsplh9o/AAD
 
 ```{r}
 library(pacman)
-p_load(tidyverse, tidymodels, fs, groupdata2, dplyr)
+p_load(tidyverse, tidymodels, fs, groupdata2, dplyr, plyr, tidyselect)
 ```
 
 
@@ -78,22 +78,20 @@ read_HR <- function(filename) {
 }
 
 # test it on just one file while writing the function
-test_data = read_HR("~/Uni stuff/Expmeth3/methods3_p4/data/Study2_G5_T1_Synchronous.csv")
-
+test_data = read_HR("Study1_G1_T1_Synchronous.csv")
 
 # apply for all data, just change pattern to get all the files
-data <- list.files(path = './data', pattern = 'Study2_G5_.', all.files = T, full.names = T) %>% 
+data <- list.files(path = './data', pattern = 'Study1_G1', all.files = T, full.names = T) %>% 
     purrr::map_df(read_HR)
 
-data$title <- as.factor(data$title)
-levels(data$title)
+data$V5 <- as.factor(data$V5)
+levels(data$V5)
 
 #plot
 ggplot(data = data) + 
   geom_path(aes(time, HR1, color = "P1")) + 
   geom_path(aes(time, HR2, color = "P2")) + 
-  labs(x = "time", y = "HR") + 
-  facet_grid(~title, scales = 'free')
+  labs(x = "time", y = "HR") + facet_grid(~title, scales = 'free')
 
 ```
 
@@ -101,6 +99,7 @@ ggplot(data = data) +
 ```{r}
 ## Remove outliers
 ### Tip, check the function below. This is the function explained in the video lecture
+
 removeOuts <- function(ts,threshold){
   ts[ts > (mean(ts,na.rm=T) +
              (threshold*sd(ts,na.rm=T))) | 
@@ -108,103 +107,55 @@ removeOuts <- function(ts,threshold){
              (threshold*sd(ts,na.rm=T)))] = mean(ts,na.rm=T)
   return(ts)
 }
-threshold=2.5# Default value at 2.5 sds from the mean. But you can increase it, if you want.
+threshold=2.5 # Default value at 2.5 sds from the mean. But you can increase it, if you want.
 
-removeOuts(data$Resp1, 2.5)
-removeOuts(data$Resp2, 2.5)
-removeOuts(data$HR1, 2.5)
-removeOuts(data$HR2, 2.5)
-removeOuts(data$ECG1, 2.5)
-removeOuts(data$ECG2, 2.5)
-
-ggplot(data = data) + 
-  geom_path(aes(time, HR1, color = "P1")) + 
-  geom_path(aes(time, HR2, color = "P2")) + 
-  labs(x = "time", y = "HR") + 
-  facet_grid(~title, scales = 'free')
-
-
-
-
-
-
-# Plot raw data against those with the artifacts removed
-
-## Scale
-
-
-### Tip: if scale() gives some issues, try the one below
-z_scale <- function(column){
-  column_c <- (column - mean(column)) / sd(column)
-}
-
-# Plot again to check how scaled data look like
-## Downsample
-
-### You can use the code below. It is almost the same as the one in the video lecture.
-
-data1 <-data %>%
-  group(n = 100, method = 'greedy') %>%
-  dplyr::summarise(
-    time = mean(time,na.rm=T),
-    HR1 = mean(HR1,na.rm=T),
-    HR2 = mean(HR2,na.rm=T),
-    Resp1 = mean(Resp1,na.rm=T),
-    Resp2 = mean(Resp2,na.rm=T))
-
-# scale
-data1 <- data1 %>% mutate_if(is.numeric, scale)
-data <- data %>% mutate_if(is.numeric, scale)
-
-    
-    
-    
-## Plot the downsampled data. You can use the code from the slides
-
-
-ggplot(data = data1) + 
-  geom_path(aes(time, HR1, color = "P1")) + 
-  geom_path(aes(time, HR2, color = "P2")) + 
-  labs(x = "time", y = "HR") + 
-  facet_grid(~.groups, scales = 'free')
-
-
-## Now add the group, trial, condition to the cleaned up, scaled, downsampled data
-## Tip the info is in the file name
-```
-
-## NANNA
-```{r}
-
-```{r}
-### Tip, check the function below. This is the function explained in the video lecture
-removeOuts <- function(ts,threshold){
-  ts[ts > (mean(ts,na.rm=T) +
-             (threshold*sd(ts,na.rm=T))) | 
-       ts < (mean(ts,na.rm=T) -
-             (threshold*sd(ts,na.rm=T)))] = mean(ts,na.rm=T)
-  return(ts)
-}
-#Setting treshold, Default value at 2.5 sds from the mean. But you can increase it, if you want
-threshold=2.5 
-
-#Creating columns for data without outliers
 data <- data %>% 
   mutate(HR1_c = removeOuts(HR1, threshold),
         HR2_c = removeOuts(HR2, threshold),
         Resp1_c = removeOuts(Resp1, threshold),
         Resp2_c = removeOuts(Resp2, threshold))
 
+
+# you can work at this if you have time, it just makes the code smoother
+data2 <- all_numeric(data) %>% map_df(removeOuts)
+
+data2 <- sapply(data, function(removeOuts))
+
+colwise(removeOuts)(data)
+
+ddply(data, .(HR1, HR2), numcolwise(removeOuts(threshold = 2.5)))
+
+?colwise()
 ```
+
+
+```{r}
+# Plot raw data against those with the artifacts removed
+
+ggplot(data = data) + 
+  geom_path(aes(time, HR1, color = "P1")) + 
+  geom_path(aes(time, HR2, color = "P2")) +
+  geom_path(aes(time, HR1_c, color = "P3")) + 
+  geom_path(aes(time, HR2_c, color = "P4")) + 
+  labs(x = "time", y = "HR") + 
+  facet_grid(~title, scales = 'free')
+```
+
 
 ```{r}
 ## Scale
+
+df_train <- df_train %>% mutate_if(is.numeric, scale)
+data <- data %>% mutate_if(is.numeric, scale)
+
+?across()
+
+
 ### Tip: if scale() gives some issues, try the one below
 z_scale <- function(column){
   column_c <- (column - mean(column)) / sd(column)
 }
 
-#creating new columns with scaled data
 data <- data %>% 
   mutate(HR1_sc = z_scale(HR1_c),
         HR2_sc = z_scale(HR2_c),
@@ -212,14 +163,53 @@ data <- data %>%
         Resp2_sc = z_scale(Resp2_c))
 
 # Plot again to check how scaled data look like
+
 ggplot(data = data) + 
   geom_path(aes(time, HR1_sc, color = "P1")) + 
   geom_path(aes(time, HR2_sc, color = "P2")) + 
   labs(x = "time", y = "HR") + 
-  facet_grid(~Trial, scales = 'free')
-#very nice and very messy
-
+  facet_grid(~title, scales = 'free')
 ```
+
+
+```{r}
+## Downsample
+
+### You can use the code below. It is almost the same as the one in the video lecture.
+data$title <- as.numeric(data$title)
+
+data1 <- data %>%
+  group(n = 6379, method = 'n_dist') %>%
+  dplyr::summarise(
+    time = mean(time,na.rm=T),
+    HR1_sc = mean(HR1_sc,na.rm=T),
+    HR2_sc = mean(HR2_sc,na.rm=T),
+    Resp1_sc = mean(Resp1_sc,na.rm=T),
+    Resp2_sc = mean(Resp2_sc,na.rm=T),
+    title = median(title))
+
+## Plot the downsampled data. You can use the code from the slides
+
+# why is this plot weird?
+ggplot(data = data1) + 
+  geom_path(aes(time, HR1_sc, color = "P1")) + 
+  geom_path(aes(time, HR2_sc, color = "P2")) + 
+  labs(x = "time", y = "HR") + 
+  facet_grid(~title, scales = 'free')
+
+k <- data1 %>% filter(title == 3) %>% arrange(time)
+
+
+## Now add the group, trial, condition to the cleaned up, scaled, downsampled data
+
+pattern <- "Study(\\d+)_G(\\d+)_T(\\d+)_(\\w+)"
+
+id_stuff <- str_match(files, pattern = "Study(\\d+)_G(\\d+)_T(\\d+)_(\\w+)") %>% 
+  as.data.frame() %>%
+  rename("study" = "V2" , "group" = "V3", "trial" = "V4", "type" = "V5")
+
+
+read.csv("~/Uni stuff/Expmeth3/methods3_p4/HR_data1.csv")
 
 ```
 
@@ -234,17 +224,82 @@ A couple of tips:
 - each study restarts the group numbering, so you should make sure to change that (e.g. 100 * Study + Group)
 - you need to make sure all the data are meaningful or something has to be removed. Plotting is your friend. E.g. "Study1_G1_T1_Synchronous" has one bad respiration signal. We could replace it with NAs
 
+```{r}
+read_HR <- function(filename, threshold) {
+    
+  #getting filenames and subsetting them
+    files = path_file(path = filename) 
+    
+    for (file in filename){
+    IDdf <- str_match(files, pattern = "Study(\\d+)_G(\\d+)_T(\\d+)_(\\w+)")
+    }
+    
+    # loading data
+    df = read_csv(filename)
+                          # i manually renamed study 4 in the csv file, because it had a column named TimeMs instead of time. this will cause an error. 
+    
+    #downsample the data
+    df <- df %>% 
+      group(n = 100, method = 'greedy') %>% 
+      dplyr::summarise(across(where(is.numeric), mean, na.rm = T))
+
+    #merge after downsampling in order to get the columns from filename
+    data = merge(IDdf, df)
+    data <- tibble(data)
+
+    #remove outs
+    data <- data %>% 
+      dplyr::mutate(across(where(is.numeric) & !time, removeOuts, threshold))
+    
+    #scale the data
+    data <- data %>% 
+      dplyr::mutate(across(where(is.numeric) & !time, z_scale))
+    
+    #clean the frame
+      #renaming columns
+    data <- data %>% dplyr::rename(
+      file = V1, 
+      study = V2,
+      group = V3,
+      trial = V4,
+      type = V5
+      )
+      
+      #pasting to group name for unique group id
+      data$group <- paste0(data$study, data$group)
+      data$.groups <- NULL
+      
+      #correcting classes
+      data <- data %>% 
+        dplyr::mutate(across(where(is.character), as.factor))
+    
+    # combine all this data in one dataset
+    return(data)
+}
+
+
+
+# test it on just one file while writing the function
+test_data = read_HR("Study1_G1_T1_Synchronous.csv", 2.5)
+
+# apply for all data, just change pattern to get all the files
+data <- list.files(path = './data', pattern = '.csv', all.files = T, full.names = T) %>% 
+    purrr::map_df(read_HR, 2.5)
+
+
+data <- data %>% select(-ECG1, -ECG2, -ReadingStart, -ReadingStop, -min, -Signal1, -Signal2)
+
+# i think we will write to csv here, so we can always reload the data. 
+  
+#write_csv(data, 'HR_data.csv')
+
+HR_data <- read_csv("~/Uni stuff/Expmeth3/methods3_p4/HR_data.csv")
+```
+
+
 
 ```{r}
-# Define a function running the loading, artifact removal, scaling, downsampling, info adding.
-data_preprocess <- function(filename, threshold = 2.5){
-  
-  # To be filled in
-  
-  return(d1)
-}
-#  Identify all files to be read
-# Run the function on the whole dataset using map_df
+
          
 # Now we need to make sure all the data are meaningful or something has to be removed
 # E.g. "Study1_G1_T1_Synchronous" has one bad respiration signal. We could replace it with NAs
@@ -277,6 +332,26 @@ Bonus question: what if we include an additional layer? Is my heart rate just ad
 
 ```{r}
 # Generate a column for each: previous HR1, HR2, Resp1, Resp2. Tip: use the function Lag()
+library(zoo)
+set.seed(123)
+x <- zoo(data1$HR1)
+y <- lag(x, -1, na.pad = T)
+y-> data1$prev_HR1
+
+
+x <- zoo(data1$HR2)
+y <- lag(x, -1, na.pad = T)
+y -> data1$prev_HR2
+
+x <- zoo(data1$Resp1)
+y <- lag(x, -1, na.pad = T)
+y -> data1$prev_Resp1
+
+x <- zoo(data1$Resp2)
+y <- lag(x, -1, na.pad = T)
+y-> data1$prev_Resp2
+
+
 # Generate a column for each: change in HR1, HR2, Resp1, Resp2
 # Make the data long, so we can analyze both participants at the same time. Tip: you can use the function gather () 
 ## N.B. This is a bit tricky and you might have to do it in several steps
