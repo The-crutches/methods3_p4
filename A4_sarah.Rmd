@@ -54,14 +54,14 @@ The data files can be found here: https://www.dropbox.com/sh/bvvk7t3fvsplh9o/AAD
 
 ```{r}
 library(pacman)
-p_load(tidyverse, tidymodels, fs, groupdata2, dplyr, plyr, tidyselect)
+p_load(tidyverse, tidymodels, fs, groupdata2, dplyr, plyr, tidyselect, naniar)
 ```
 
 
 ```{r}
 # Load the file, so study1_G1_T1-3
 
-read_HR <- function(filename) {
+read_HR_1 <- function(filename) {
     # getting filenames and subsetting them
     files = path_file(path = filename) 
     
@@ -78,7 +78,7 @@ read_HR <- function(filename) {
 }
 
 # test it on just one file while writing the function
-test_data = read_HR("Study1_G1_T1_Synchronous.csv")
+test_data = read_HR_1("Study1_G1_T1_Synchronous.csv")
 
 # apply for all data, just change pattern to get all the files
 data <- list.files(path = './data', pattern = 'Study1_G1', all.files = T, full.names = T) %>% 
@@ -91,7 +91,7 @@ levels(data$V5)
 ggplot(data = data) + 
   geom_path(aes(time, HR1, color = "P1")) + 
   geom_path(aes(time, HR2, color = "P2")) + 
-  labs(x = "time", y = "HR") + facet_grid(~title, scales = 'free')
+  labs(x = "time", y = "HR") + facet_grid(~file, scales = 'free')
 
 ```
 
@@ -266,6 +266,9 @@ read_HR <- function(filename, threshold) {
       data$group <- paste0(data$study, data$group)
       data$.groups <- NULL
       
+      #add surrogate time column
+      data$time_new <- 1:nrow(data)
+      
       #correcting classes
       data <- data %>% 
         dplyr::mutate(across(where(is.character), as.factor))
@@ -286,16 +289,11 @@ data <- list.files(path = './data', pattern = '.csv', all.files = T, full.names 
     purrr::map_df(read_HR, 2.5)
 
 
-data <- data %>% select(-ECG1, -ECG2, -ReadingStart, -ReadingStop, -min, -Signal1, -Signal2)
-
-#divide time by 60.0000 in study 3 and 4
-data$time <- ifelse(data$study == 3, data$time /60000, data$time)
-data$time <- ifelse(data$study == 4, data$time /60000, data$time)
-
+data <- data %>% select(-ECG1, -ECG2, -ReadingStart, -ReadingStop, -min, -Signal1, -Signal2, -time)
 
 # i think we will write to csv here, so we can always reload the data. 
 
-write_csv(data, 'HR_data1.csv')
+#write_csv(data, 'HR_data1.csv')
 ```
 
 
@@ -330,17 +328,68 @@ x1 <- x$`48`
 x1 <- x$`41`
 
 k <- ggplot(data = x1) + 
-  geom_path(aes(time, HR1, color = "P1")) + 
-  geom_path(aes(time, HR2, color = "P2")) + 
-  labs(x = "time", y = "HR") +
-  facet_wrap( ~file, scales = 'free')
+  geom_path(aes(time, Resp1, color = 'p1')) + 
+  geom_path(aes(time, Resp2, color = 'p2')) + 
+  labs(x = "time", y = "HR") + facet_grid(~trial, scales = 'free')
+
 k
 
 # Remove bad data
 
-  # time is really on a horrible scale for study 4
+data_test <- data_test %>%
+  filter(file != 'Study2_G7_T3_TurnTaking')
+
+n_occur <- data.frame(table(data$HR1))
+df_HR1 <- data[data$HR1 %in% n_occur$Var1[n_occur$Freq > 5],]
+HR1 <- as.list(df_HR1$HR1)
+HR1 <- unique(HR1)
+
+data_test <- data_test %>% 
+  replace_with_na_at(.vars = c("HR1"),
+                     condition = ~.x %in% HR1)
+
+sum(is.na(data_test$HR2))
+
+n_occur_2 <- data.frame(table(data$HR2))
+df_HR2 <- data[data$HR2 %in% n_occur_2$Var1[n_occur_2$Freq > 5],]
+
+HR2 <- as.list(df_HR2$HR2)
+HR2 <- unique(HR2)
+
+data_test <- data_test %>% 
+  replace_with_na_at(.vars = c("HR2"),
+                     condition = ~.x %in% HR2)
+
+
+n_occur_3 <- data.frame(table(data$Resp1))
+df_Resp1 <- data[data$Resp1 %in% n_occur_3$Var1[n_occur_3$Freq > 5],]
+
+Resp1 <- as.list(df_Resp1$Resp1)
+Resp1 <- unique(Resp1)
+
+data_test <- data_test %>% 
+  replace_with_na_at(.vars = c("Resp1"),
+                     condition = ~.x %in% Resp1)
+
+sum(is.na(data_test))
+
+n_occur_4 <- data.frame(table(data$Resp2))
+df_resp2 <- data[data$Resp2 %in% n_occur_4$Var1[n_occur_4$Freq > 5],]
+
+Resp2 <- as.list(df_resp2$Resp2)
+Resp2 <- unique(Resp2)
+
+data_test <- data_test %>% 
+  replace_with_na_at(.vars = c("Resp2"),
+                     condition = ~.x %in% Resp2)
+
+
+
 
 # Save the data
+
+
+
 ```
 
 ## Now we need to run some analysis
@@ -354,6 +403,25 @@ We need to turn the data into a long format:
 - a column indicating own hr and one own respiration
 - a column indicating other hr and one other respiration
 - a column indicating change in hr from previous round and one in respiration
+
+```{r}
+# make sure you group the groups, to get individual participants.
+
+
+
+# get lags
+
+#get change values
+
+#then go from wide to long
+
+#then make sure that the values are checkered
+
+
+
+
+```
+
 
 We can then run an analysis where change is a function of one's previous state (stability, see slides), and the other's previous state (coupling). Make sure to:
 - set up the most interesting contrasts: how do these parameters vary by condition? which condition should be baseline?
