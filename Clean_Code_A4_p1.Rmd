@@ -247,7 +247,7 @@ data <- data %>% select(-ECG1, -ECG2, -ReadingStart, -ReadingStop, -min, -Signal
 =======
 
 #Loading the cleaned data 
-
+```{r}
 #data <- read_csv("HR_data_raw.csv")
 ```
 
@@ -323,7 +323,7 @@ sum(is.na(data))
 data <- read_csv("HR_data_na1.csv")
 ```
 
->>>>>>> b0a40716b0f6ea111006d9211d4ef83ada5f7f02
+
 ## Now we need to run some analysis
 
 Let's start with a multilevel model that accounts for 
