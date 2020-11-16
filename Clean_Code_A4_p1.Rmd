@@ -235,6 +235,7 @@ data <- list.files(path = './data', pattern = '.csv', all.files = T, full.names 
     purrr::map_df(read_HR, 2.5)
 
 data <- data %>% select(-ECG1, -ECG2, -ReadingStart, -ReadingStop, -min, -Signal1, -Signal2)
+<<<<<<< HEAD
          
 # Now we need to make sure all the data are meaningful or something has to be removed
 # E.g. "Study1_G1_T1_Synchronous" has one bad respiration signal. We could replace it with NAs
@@ -243,6 +244,86 @@ data <- data %>% select(-ECG1, -ECG2, -ReadingStart, -ReadingStop, -min, -Signal
 # Save the data
 ```
 
+=======
+
+#Loading the cleaned data 
+
+#data <- read_csv("HR_data_raw.csv")
+```
+
+
+```{r}
+
+# Now we need to make sure all the data are meaningful or something has to be removed
+
+  #This group has Nan in every column, we remove it
+data <- data %>%
+  filter(file != 'Study2_G7_T3_TurnTaking')
+
+#We count the number of dublicated values so that we know that the values occuring more than 5 times can be removed (counted as bad data)
+  
+  #This is for HR1 
+    #Number of ocurrences of dublicated value
+n_occur <- data.frame(table(data$HR1))
+
+    #Making dataframe only for the files with duplicated numbers counted over 5 times
+df_HR1 <- data[data$HR1 %in% n_occur$Var1[n_occur$Freq > 5],]
+
+    #Making the values as list with unique values
+HR1_remove <- unique(as.list(df_HR1$HR1))
+
+data <- data %>% 
+  naniar::replace_with_na_at(.vars = c("HR1"),
+                     condition = ~.x %in% HR1_remove)
+
+  #For HR2 same procedure as ^^
+n_occur_2 <- data.frame(table(data$HR2))
+
+df_HR2 <- data[data$HR2 %in% n_occur_2$Var1[n_occur_2$Freq > 5],]
+
+HR2_remove <- unique(as.list(df_HR2$HR2))
+
+data <- data %>% 
+  replace_with_na_at(.vars = c("HR2"),
+                     condition = ~.x %in% HR2_remove)
+
+  #For Resp1
+
+n_occur_3 <- data.frame(table(data$Resp1))
+
+df_Resp1 <- data[data$Resp1 %in% n_occur_3$Var1[n_occur_3$Freq > 5],]
+
+Resp1_remove <- unique(as.list(df_Resp1$Resp1))
+
+data <- data %>% 
+  naniar::replace_with_na_at(.vars = c("Resp1"),
+                     condition = ~.x %in% Resp1_remove) 
+  
+  #For Resp2
+
+n_occur_4 <- data.frame(table(data$Resp2))
+
+df_resp2 <- data[data$Resp2 %in% n_occur_4$Var1[n_occur_4$Freq > 5],]
+
+Resp2_remove <- unique(as.list(df_resp2$Resp2))
+
+data <- data %>% 
+  replace_with_na_at(.vars = c("Resp2"),
+                     condition = ~.x %in% Resp2_remove)
+
+sum(is.na(data))
+
+# Save the data
+
+# write_csv(data, "HR_data_na1.csv")
+
+```
+
+```{r}
+data <- read_csv("HR_data_na1.csv")
+```
+
+>>>>>>> b0a40716b0f6ea111006d9211d4ef83ada5f7f02
 ## Now we need to run some analysis
 
 Let's start with a multilevel model that accounts for 
