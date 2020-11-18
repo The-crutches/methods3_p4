@@ -209,7 +209,7 @@ id_stuff <- str_match(files, pattern = "Study(\\d+)_G(\\d+)_T(\\d+)_(\\w+)") %>%
   rename("study" = "V2" , "group" = "V3", "trial" = "V4", "type" = "V5")
 
 
-df <- read.csv("~/Uni stuff/Expmeth3/methods3_p4/HR_data_na1.csv")
+data <- read.csv("~/Uni stuff/Expmeth3/methods3_p4/HR_data_na1.csv")
 
 ```
 
