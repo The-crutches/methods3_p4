@@ -496,6 +496,108 @@ data_long$HR_ID <- paste0(data_long$.groups, data_long$ID)
 # Model change as a function of own and other previous state 
 # Bonus points: Add to the previous model also change in the other to see whether my adaptation is influenced by the other's adaptation.
 ```
+Byurakn's slides
+```{r}
+df <- read_csv("~/Uni stuff/Expmeth3/methods3_p4/HR_data_na1.csv")
+```
+
+```{r}
+
+
+df <- read_csv('HR_data_na1.csv')
+
+sub <- df %>% select(file:type, time_new, HR1, HR2) 
+
+df1 <- sub %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)')
+
+
+df1$ID <- paste0(df1$group, df1$ID)
+df1$ID <- as.factor(df1$ID)
+
+df1 <- df1 %>% dplyr::rename(HR_self = HR)
+
+
+df1 <- pivot_longer(df, HR_self, HR1, HR2)
+
+
+
+
+#other hr
+
+sub2 <- df %>% select(file:type, time_new, HR2, HR1) 
+
+df2 <- sub2 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+df2$ID <- paste0(df2$group, df2$ID)
+df2$ID <- as.factor(df2$ID)
+
+df2 <- df2 %>% dplyr::rename(HR_other = HR) %>% select(HR_other)
+
+df_new <- cbind(df1, df2)
+
+#resp 
+sub3 <- df %>% select(file:type, time_new, Resp1, Resp2) 
+
+
+df3 <- sub3 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+df3$ID <- paste0(df3$group, df3$ID)
+df3$ID <- as.factor(df3$ID)
+df3 <- df3 %>% dplyr::rename(Resp_self = Resp)
+
+# resp other
+
+sub4 <- df %>% select(file:type, time_new, Resp2, Resp1) 
+
+
+df4 <- sub4 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+df4$ID <- paste0(df4$group, df4$ID)
+df4$ID <- as.factor(df4$ID)
+df4 <- df4 %>% dplyr::rename(Resp_other = Resp) %>% select(Resp_other)
+
+df2 <- cbind(df3, df4)
+
+#merge all
+
+data <- merge(df_new, df2)
+ 
+# get leads
+
+data <- data %>% 
+  mutate(
+    HR_self_lead = lead(HR_self),
+    HR_other_lead = lead(HR_other),
+    Resp_self_lead = lead(Resp_self),
+    Resp_other_lead = lead(Resp_other)
+    )
+
+data <- data %>% 
+  mutate(
+    HR_change_self = (HR_self - HR_self_lead),
+    HR_change_other = (HR_other - HR_other_lead),
+    Resp_change_self = (Resp_self - Resp_self_lead),
+    Resp_change_other = (Resp_other - Resp_other_lead)
+  )
+
+
+
+```
 
 
 ## Now we need to create control baselines.
