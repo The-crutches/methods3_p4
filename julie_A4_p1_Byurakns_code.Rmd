@@ -498,6 +498,9 @@ data_long$HR_ID <- paste0(data_long$.groups, data_long$ID)
 ```
 Byurakn's slides
 ```{r}
+library(pacman)
+p_load(tidyverse, tidymodels, fs, groupdata2, dplyr, plyr, tidyselect, lme4)
+
 df <- read_csv("~/Uni stuff/Expmeth3/methods3_p4/HR_data_na1.csv")
 ```
 
@@ -520,7 +523,7 @@ df1$ID <- as.factor(df1$ID)
 df1 <- df1 %>% dplyr::rename(HR_self = HR)
 
 
-df1 <- pivot_longer(df, HR_self, HR1, HR2)
+#df1 <- pivot_longer(df1, HR_self, HR1, HR2)
 
 
 
@@ -596,6 +599,117 @@ data <- data %>%
   )
 
 
+
+```
+
+
+
+```{r}
+df <- read_csv('HR_data_na1.csv')
+# Generate a column for each: previous HR1, HR2, Resp1, Resp2. Tip: use the function Lag()
+
+df <- df %>% 
+  group_by(trial, group) %>% 
+  mutate(HR1_lag = lag(HR1),
+         HR2_lag = lag(HR2),
+         Resp1_lag = lag(Resp1),
+         Resp2_lag = lag(Resp2))
+# Generate a column for each: change in HR1, HR2, Resp1, Resp2
+df <- df %>% 
+  mutate(HR1_change = HR1 - HR1_lag,
+         HR2_change = HR2 - HR2_lag,
+         Resp1_change = Resp1 - Resp1_lag,
+         Resp2_change = Resp2 - Resp2_lag)
+```
+
+
+```{r}
+#making the self and other HR column 
+HR_self <- pivot_longer(df, c(HR1,HR2), names_to = "participant", values_to = "HR_self") 
+
+
+HR_other <- pivot_longer(df, c(HR2,HR1), values_to = "HR_other") 
+
+#adding to a main dataframe 
+df1 <- cbind(HR_self, HR_other = HR_other$HR_other)
+
+ 
+
+#making the resp self and resp other data frames
+Resp_self <- pivot_longer(df, c(Resp1, Resp2), values_to = "Resp_self")
+Resp_other <- pivot_longer(df, c(Resp2, Resp1), values_to = "Resp_other")
+#adding the pivotted columns to the main dataframe 
+df1 <- cbind(df1, 
+                 Resp_self = Resp_self$Resp_self, 
+                 Resp_other = Resp_other$Resp_other)
+
+
+#now we do it with hr change self and hr change other
+HR_change <- pivot_longer(df, c(HR1_change, HR2_change), values_to = "HR_change_self")
+HR_change_other <- pivot_longer(df, c(HR2_change, HR1_change), values_to = "HR_change_other")
+#adding to df
+df1 <- cbind(df1, 
+                 HR_change_self = HR_change$HR_change_self, 
+                 HR_change_other = HR_change_other$HR_change_other)
+
+#now we do it with resp change self and other
+Resp_change <- pivot_longer(df, c(Resp1_change, Resp2_change), values_to = "Resp_change_self")
+Resp_change_other <- pivot_longer(df, c(Resp2_change, Resp1_change), values_to = "Resp_change_other")
+#adding to df
+df1 <- cbind(df1, 
+                 Resp_change_self = Resp_change$Resp_change_self, 
+                 Resp_change_other = Resp_change_other$Resp_change_other)
+
+#now it's time for hr lag self and hr lag other 
+HR_lag <- pivot_longer(df, c(HR1_lag, HR2_lag), values_to = "HR_lag_self")
+HR_lag_other <- pivot_longer(df, c(HR2_lag, HR1_lag), values_to = "HR_lag_other")
+#adding to df
+df1 <- cbind(df1, 
+                 HR_lag_self = HR_lag$HR_lag_self, 
+                 HR_lag_other = HR_lag_other$HR_lag_other)
+
+
+#and finally resp lag self and resp lag other 
+Resp_lag <- pivot_longer(df, c(Resp1_lag, Resp2_lag), values_to = "Resp_lag_self")
+Resp_lag_other <- pivot_longer(df, c(Resp2_lag, Resp1_lag), values_to = "Resp_lag_other")
+#adding to df
+df1 <- cbind(df1, 
+                 Resp_lag_self = Resp_lag$Resp_lag_self, 
+                 Resp_lag_other = Resp_lag_other$Resp_lag_other)
+  
+#making a nice participant column with unique numbers for each participant 
+df1 <- df1 %>% 
+  mutate(participant = paste0(group, str_extract(participant, ("\\d"))))
+
+write_csv(df1, "final_df.csv")
+```
+
+
+```{r}
+df1 <- read_csv("final_df.csv")
+```
+
+
+
+
+
+```{r}
+# Set the most interesting contrast e.g. by defining synchronous or conversation as the baseline
+df1$type <- as.factor(df1$type)
+
+# Relevel with conversation as baseline
+df1$type <- relevel(df1$type, ref = "Conversation")
+levels(df1$type)
+
+```
+
+
+```{r}
+# Model change as a function of own and other previous state 
+
+m1 <- lmerTest::lmer(HR_change_self ~ 0 + (HR_self + HR_other) : type +  (0 + type | participant),  subset(df1, study=="4"), REML=F,control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+summary(m1)
 
 ```
 
