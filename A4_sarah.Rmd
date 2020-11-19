@@ -472,15 +472,15 @@ data <- cbind(df, df2)
  
 # byurakns code for group by does not work ...
 
-data <- data %>% group_by(ID, type) %>% 
+data <- data %>% group_by(trial, ID) %>% 
   mutate(
-    HR_self_lead = lead(HR_self),
-    HR_other_lead = lead(HR_other),
-    Resp_self_lead = lead(Resp_self),
-    Resp_other_lead = lead(Resp_other)
+    HR_self_lead = lag(HR_self, 1),
+    HR_other_lead = lag(HR_other, 1),
+    Resp_self_lead = lag(Resp_self, 1),
+    Resp_other_lead = lag(Resp_other, 1)
     )
 
-data <- data %>% group_by(ID, type) %>% 
+data <- data %>% group_by(trial, ID) %>% 
   mutate(
     HR_change_self = (HR_self - HR_self_lead),
     HR_change_other = (HR_other - HR_other_lead),
@@ -503,12 +503,20 @@ Bonus question: what if we include an additional layer? Is my heart rate just ad
 
 
 ```{r}
-# Generate a column for each: previous HR1, HR2, Resp1, Resp2. Tip: use the function Lag()
-# Generate a column for each: change in HR1, HR2, Resp1, Resp2
-# Make the data long, so we can analyze both participants at the same time. Tip: you can use the function gather () 
-## N.B. This is a bit tricky and you might have to do it in several steps
 # Set the most interesting contrast e.g. by defining synchronous or conversation as the baseline
 # Model change as a function of own and other previous state 
+
+data_study1 = data %>% filter(study == 1)
+data_study1_ID111 = data %>% filter(ID == 111)
+data_study1_synch = data %>% filter(study == 1 & type == 'Synchronous')
+data_study1_group11 = data %>% filter(study == 1 & group == 11)
+
+library(lme4)
+doParallel::registerDoParallel()
+
+m1 = lmer(HR_change_self ~ 0 + (HR_self + HR_other)*type + (0 + type|ID), REML = F, control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE), data = data_study1_group11)
+
+m1
 # Bonus points: Add to the previous model also change in the other to see whether my adaptation is influenced by the other's adaptation.
 ```
 
