@@ -404,20 +404,6 @@ data <- data %>% mutate(
 
 # make sure you group the groups, to get individual participants.
 
-#paste hr 1 or 2 to the group column
-
-# first create hr_self and hr_other
-
-data2 <- pivot_longer(data1, HR_self, HR1, HR2)
-
-data1 <- data %>% pivot_longer(
-  cols = c(HR1, HR2, Resp1, Resp2),
-  values_to = c("HR_all", "Resp_all")
-)
-
-#might work to get hr and resp at the same time
-df %>% pivot_longer(!id, names_to = ".value", names_pattern = "(.).")
-
 #hR1
 sub <- data %>% select(file:type, time_new, HR1, HR2) 
 
@@ -460,7 +446,7 @@ data3 <- sub3 %>%
   )
 
 data3$ID <- paste0(data3$group, data3$ID)
-data3$ID <- as.factor(data2$ID)
+data3$ID <- as.factor(data3$ID)
 data3 <- data3 %>% dplyr::rename(Resp_self = Resp)
 
 # resp other
@@ -478,15 +464,15 @@ data4$ID <- paste0(data4$group, data4$ID)
 data4$ID <- as.factor(data4$ID)
 data4 <- data4 %>% dplyr::rename(Resp_other = Resp) %>% select(Resp_other)
 
-df2 <- cbind(data3, data4)
+df2 <- cbind(data3, data4) %>% select(Resp_self, Resp_other)
 
 #merge all
 
-data <- merge(df, df2)
+data <- cbind(df, df2)
  
-# get leads
+# byurakns code for group by does not work ...
 
-data <- data %>% 
+data <- data %>% group_by(ID, type) %>% 
   mutate(
     HR_self_lead = lead(HR_self),
     HR_other_lead = lead(HR_other),
@@ -494,7 +480,7 @@ data <- data %>%
     Resp_other_lead = lead(Resp_other)
     )
 
-data <- data %>% 
+data <- data %>% group_by(ID, type) %>% 
   mutate(
     HR_change_self = (HR_self - HR_self_lead),
     HR_change_other = (HR_other - HR_other_lead),
@@ -538,6 +524,28 @@ Tip: sample() is your friend, but make sure to shuffle things within participant
  
 ```{r}
 # Create a shuffled dataset
+
+data$df_type <- "Real" 
+
+data_shuffled <- data %>% group_by(ID, type) %>%
+  mutate(
+    HR_self = sample(HR_self), # randomly samples values from the column
+    HR_other = sample(HR_other),
+    HR_self_lead = sample(HR_self_lead),
+    HR_other_lead = sample(HR_other_lead),
+    HR_change_self = sample(HR_change_self),
+    HR_change_other = sample(HR_change_other),
+    
+    Resp_self = sample(Resp_self),
+    Resp_other = sample(Resp_other),
+    Resp_self_lead = sample(Resp_self_lead),
+    Resp_other_lead = sample(Resp_other_lead),
+    Resp_change_self = sample(Resp_change_self),
+    Resp_change_other = sample(Resp_change_other),
+    
+    df_type = 'Shuffle')
+
+
 # Concatenate it to the original dataset (and remember to have a column telling you which is which)
 # Create the same models as in the previous chunk, but adding an interaction by shuffled vs. real
 ```
