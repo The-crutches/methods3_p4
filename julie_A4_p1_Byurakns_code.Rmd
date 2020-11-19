@@ -209,7 +209,7 @@ id_stuff <- str_match(files, pattern = "Study(\\d+)_G(\\d+)_T(\\d+)_(\\w+)") %>%
   rename("study" = "V2" , "group" = "V3", "trial" = "V4", "type" = "V5")
 
 
-read.csv("~/Uni stuff/Expmeth3/methods3_p4/HR_data1.csv")
+data <- read.csv("~/Uni stuff/Expmeth3/methods3_p4/HR_data_na1.csv")
 
 ```
 
@@ -293,7 +293,7 @@ data <- data %>% select(-ECG1, -ECG2, -ReadingStart, -ReadingStop, -min, -Signal
   
 #write_csv(data, 'HR_data.csv')
 
-HR_data <- read_csv("~/Uni stuff/Expmeth3/methods3_p4/HR_data.csv")
+data1 <- read_csv("~/Uni stuff/Expmeth3/methods3_p4/HR_data_na1.csv")
 ```
 
 
@@ -329,35 +329,274 @@ Bonus question: what if we include an additional layer? Is my heart rate just ad
 - to start answering this we can add a column indicating the previous change in hr in the other and one in respiration
 - we can then build on the previous models by also adding the previous change in the other
 
+Sigrids gruppe
+
+```{r}
+library(melt)
+
+df <- df  %>% 
+  melt(id.vars=c("file", "study", "group", "trial", "type", "time", "HR1", "HR2", "Resp1", "Resp2")) %>% 
+  mutate(
+    Participant = ifelse(variable == "HR1" | variable == "Resp1",
+                         paste0("1", as.character(group)),
+                         paste0("2", as.character(group))),
+    Participant = as.numeric(Participant))
+
+
+  spread(variable, value) %>% 
+  arrange(file, time) %>% 
+  
+  
+  
+    # Creating the different parameters
+  mutate(
+    #The original measurements
+    par_no = str_extract(as.character(Participant), "\\d"),
+    HR_self = ifelse(par_no == 1, HR1, HR2),
+    HR_other = ifelse(par_no == 2, lag(HR_self), lead(HR_self)),
+    Resp_self = ifelse(par_no == 1, Resp1, Resp2),
+    Resp_other = ifelse(par_no == 2, lag(Resp_self), lead(Resp_self)),
+    
+    #THe previous values
+    HR_previous_self = lag(HR_self, n = 2),
+    HR_previous_other = lag(HR_other, n = 2),
+    Resp_previous_self = lag(Resp_self, n = 2),
+    Resp_previous_other = lag(Resp_other, n = 2),
+    
+    #The next values
+    HR_lead_self = lead(HR_self, n = 2),
+    HR_lead_other = lead(HR_other, n = 2),
+    Resp_lead_self = lead(Resp_self, n = 2),
+    Resp_lead_other = lead(Resp_other, n = 2),
+    
+    #The change parameters 
+    HR_change_self = HR_previous_self - HR_self,
+    HR_change_other = HR_previous_other - HR_other,
+    Resp_change_self = Resp_previous_self - Resp_self,
+    Resp_change_other = Resp_previous_other - Resp_other
+  ) %>% 
+  # Deselecting irelevant collumns
+  select(
+    !(HR1:Resp2)
+  )
+  
+```
+```{r}
+df <- df %>% 
+  mutate(
+    Participant = ifelse(variable == "HR1" | variable == "Resp1",
+                         paste0("1", as.character(time_new)),
+                         paste0("2", as.character(time_new))),
+    Participant = as.numeric(Participant))
+```
 
 ```{r}
 # Generate a column for each: previous HR1, HR2, Resp1, Resp2. Tip: use the function Lag()
 library(zoo)
 set.seed(123)
-x <- zoo(data1$HR1)
-y <- lag(x, -1, na.pad = T)
-y-> data1$prev_HR1
 
 
-x <- zoo(data1$HR2)
-y <- lag(x, -1, na.pad = T)
+x <- data1$HR1
+y <- c(NA, head(x, -1))
+y -> data1$prev_HR1
+
+
+x <- data1$HR2
+y <- c(NA, head(x, -1))
 y -> data1$prev_HR2
 
-x <- zoo(data1$Resp1)
-y <- lag(x, -1, na.pad = T)
+x <- data1$Resp1
+y <- c(NA, head(x, -1))
 y -> data1$prev_Resp1
 
-x <- zoo(data1$Resp2)
-y <- lag(x, -1, na.pad = T)
-y-> data1$prev_Resp2
+x <- data1$Resp2
+y <- c(NA, head(x, -1))
+y -> data1$prev_Resp2
 
 
 # Generate a column for each: change in HR1, HR2, Resp1, Resp2
+
+data1$change_HR1 <- data1$HR1-data1$prev_HR1
+
+data1$change_HR2 <- data1$HR2-data1$prev_HR2
+
+data1$change_Resp1 <- data1$Resp1-data1$prev_Resp1
+
+data1$change_Resp2 <- data1$Resp2-data1$prev_Resp2
+
 # Make the data long, so we can analyze both participants at the same time. Tip: you can use the function gather () 
 ## N.B. This is a bit tricky and you might have to do it in several steps
+gather(data, key, value, ..., na.rm = FALSE, convert = FALSE)
+
+
+data1 <- melt(data1,
+        # ID variables - all the variables to keep but not split apart on
+    id.vars=c("file", "study", "group", "trial", "type", "time", "HR1", "HR2"),
+        # The source columns
+    measure.vars=c("HR1", "HR2"),
+        # Name of the destination column that will identify the original
+        # column that the measurement came from
+    variable.name="HR_ID_self",
+    value.name="HR_self")
+data_long
+
+
+data1 <-   melt(data1,
+        # ID variables - all the variables to keep but not split apart on
+    id.vars=c("file", "study", "group", "trial", "type", "time", "HR1", "HR2", "HR_ID_self", "HR_self"),
+        # The source columns
+    measure.vars=c("HR2", "HR1"),
+        # Name of the destination column that will identify the original
+        # column that the measurement came from
+    variable.name="HR_ID_other",
+    value.name="HR_other")
+
+
+data1 %>% pivot_longer(
+   cols = c("HR1", "HR2"),
+   # could also use cols = starts_with("date"),
+   names_to = "HR_ID",
+   values_to = "HR_self",
+   values_drop_na = TRUE)-> data_long
+
+
+data1 %>% pivot_longer(
+   cols = c("change_HR1", "change_HR2"),
+   # could also use cols = starts_with("date"),
+   names_to = "HR_change_ID",
+   values_to = "HR_change",
+   values_drop_na = TRUE
+)-> data_long
+
+
+data1 %>% pivot_longer(
+   cols = c("HR2", "HR1"),
+   # could also use cols = starts_with("date"),
+   names_to = "HR_ID",
+   values_to = "HR_other",
+   values_drop_na = TRUE
+)-> data_long
+
+
+data1 %>% pivot_longer(
+   cols = c("change_HR1", "change_HR2"),
+   # could also use cols = starts_with("date"),
+   names_to = "HR_change_ID",
+   values_to = "HR_change",
+   values_drop_na = TRUE
+)-> data1
+
+data_long <- data1 %>% gather(ID, HR, HR1:HR2)
+
+data_long <- data1 %>% gather(HRchange_ID, HR_change, change_HR1:change_HR2)
+
+data_long$HR_ID <- paste0(data_long$.groups, data_long$ID)
+
 # Set the most interesting contrast e.g. by defining synchronous or conversation as the baseline
 # Model change as a function of own and other previous state 
 # Bonus points: Add to the previous model also change in the other to see whether my adaptation is influenced by the other's adaptation.
+```
+Byurakn's slides
+```{r}
+df <- read_csv("~/Uni stuff/Expmeth3/methods3_p4/HR_data_na1.csv")
+```
+
+```{r}
+
+
+df <- read_csv('HR_data_na1.csv')
+
+sub <- df %>% select(file:type, time_new, HR1, HR2) 
+
+df1 <- sub %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)')
+
+
+df1$ID <- paste0(df1$group, df1$ID)
+df1$ID <- as.factor(df1$ID)
+
+df1 <- df1 %>% dplyr::rename(HR_self = HR)
+
+
+df1 <- pivot_longer(df, HR_self, HR1, HR2)
+
+
+
+
+#other hr
+
+sub2 <- df %>% select(file:type, time_new, HR2, HR1) 
+
+df2 <- sub2 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+df2$ID <- paste0(df2$group, df2$ID)
+df2$ID <- as.factor(df2$ID)
+
+df2 <- df2 %>% dplyr::rename(HR_other = HR) %>% select(HR_other)
+
+df_new <- cbind(df1, df2)
+
+#resp 
+sub3 <- df %>% select(file:type, time_new, Resp1, Resp2) 
+
+
+df3 <- sub3 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+df3$ID <- paste0(df3$group, df3$ID)
+df3$ID <- as.factor(df3$ID)
+df3 <- df3 %>% dplyr::rename(Resp_self = Resp)
+
+# resp other
+
+sub4 <- df %>% select(file:type, time_new, Resp2, Resp1) 
+
+
+df4 <- sub4 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+df4$ID <- paste0(df4$group, df4$ID)
+df4$ID <- as.factor(df4$ID)
+df4 <- df4 %>% dplyr::rename(Resp_other = Resp) %>% select(Resp_other)
+
+df2 <- cbind(df3, df4)
+
+#merge all
+
+data <- merge(df_new, df2)
+ 
+# get leads
+
+data <- data %>% 
+  mutate(
+    HR_self_lead = lead(HR_self),
+    HR_other_lead = lead(HR_other),
+    Resp_self_lead = lead(Resp_self),
+    Resp_other_lead = lead(Resp_other)
+    )
+
+data <- data %>% 
+  mutate(
+    HR_change_self = (HR_self - HR_self_lead),
+    HR_change_other = (HR_other - HR_other_lead),
+    Resp_change_self = (Resp_self - Resp_self_lead),
+    Resp_change_other = (Resp_other - Resp_other_lead)
+  )
+
+
+
 ```
 
 

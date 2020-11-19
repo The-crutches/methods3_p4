@@ -54,30 +54,9 @@ The data files can be found here: https://www.dropbox.com/sh/bvvk7t3fvsplh9o/AAD
 
 ```{r}
 # Load the libraries
-pacman::p_load(tidyverse, tidymodels, fs, groupdata2, dplyr, purrr, naniar)
+pacman::p_load(tidyverse, tidymodels, fs, groupdata2, dplyr, purrr)
 
-#Functions
-
-  #Removeoutliers
-removeOuts <- function(ts,threshold){
-  ts[ts > (mean(ts,na.rm=T) +
-             (threshold*sd(ts,na.rm=T))) | 
-       ts < (mean(ts,na.rm=T) -
-             (threshold*sd(ts,na.rm=T)))] = mean(ts,na.rm=T)
-  return(ts)
-}
-
-  #Scaling function
-z_scale <- function(column){
-  column_c <- (column - mean(column)) / sd(column)
-}
-
-```
-
-
-```{r}
 # Load the file
-
 pattern <- "Study(\\d+)_G(\\d+)_T(\\d+)_(\\w+)"
 
 read_HR_test <- function(filename) {
@@ -171,7 +150,7 @@ test_data_down <- test_data %>%
   dplyr::summarise(across(where(is.numeric), mean, na.rm = T))
 
 ## Plot the downsampled data. You can use the code from the slides
-
+  ###HELP PLOTTING THIS 
 ggplot(data = test_data_down) + 
   geom_path(aes(time, HR1, color = "P1")) + 
   geom_path(aes(time, HR2, color = "P2")) +
@@ -238,9 +217,6 @@ read_HR <- function(filename, threshold) {
       data$group <- paste0(data$study, data$group)
       data$.groups <- NULL
       
-      #Add surrogate time column 
-      data$time_new <- 1:nrow(data)
-      
       #correcting classes
       data <- data %>% 
         dplyr::mutate(across(where(is.character), as.factor))
@@ -255,13 +231,23 @@ read_HR <- function(filename, threshold) {
 test_data_HR = read_HR("Study1_G1_T1_Synchronous.csv", 2.5)
 
 # apply for all data, just change pattern to get all the files
-#data <- list.files(path = './data', pattern = '.csv', all.files = T, full.names = T) %>% 
-   # purrr::map_df(read_HR, 2.5)
+data <- list.files(path = './data', pattern = '.csv', all.files = T, full.names = T) %>% 
+    purrr::map_df(read_HR, 2.5)
 
 data <- data %>% select(-ECG1, -ECG2, -ReadingStart, -ReadingStop, -min, -Signal1, -Signal2)
+<<<<<<< HEAD
+         
+# Now we need to make sure all the data are meaningful or something has to be removed
+# E.g. "Study1_G1_T1_Synchronous" has one bad respiration signal. We could replace it with NAs
+# plots plots plots
+# Remove bad data
+# Save the data
+```
+
+=======
 
 #Loading the cleaned data 
-
+```{r}
 #data <- read_csv("HR_data_raw.csv")
 ```
 
@@ -337,6 +323,7 @@ sum(is.na(data))
 data <- read_csv("HR_data_na1.csv")
 ```
 
+
 ## Now we need to run some analysis
 
 Let's start with a multilevel model that accounts for 
@@ -367,6 +354,7 @@ Bonus question: what if we include an additional layer? Is my heart rate just ad
 # Set the most interesting contrast e.g. by defining synchronous or conversation as the baseline
 # Model change as a function of own and other previous state 
 # Bonus points: Add to the previous model also change in the other to see whether my adaptation is influenced by the other's adaptation.
+
 ```
 
 
