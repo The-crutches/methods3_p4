@@ -213,14 +213,17 @@ read_study4 <- function(filename) {
     df <- df %>% 
       mutate(time = time/60000)}
 
-read_HR <- function(filename, threshold) {
+read_HR_new <- function(filename, threshold) {
     
   #getting filenames and subsetting them
-    files = path_file(path = filename) 
+    filename <- path_file(path = filename) 
     
-    for (file in filename){
+    df <- read_csv(filename)
+    df <- df %>% mutate(
+      
+      
+    )
     IDdf <- str_match(files, pattern = "Study(\\d+)_G(\\d+)_T(\\d+)_(\\w+)")
-    }
     
     # loading data
     df = read_csv(filename)
