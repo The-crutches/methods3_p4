@@ -707,10 +707,15 @@ levels(df1$type)
 ```{r}
 # Model change as a function of own and other previous state 
 
+library(lme4)
+
 m1 <- lmerTest::lmer(HR_change_self ~ 0 + (HR_self + HR_other) : type +  (0 + type | participant),  subset(df1, study=="4"), REML=F,control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
 
 summary(m1)
 
+m2 <- lmerTest::lmer(HR_change_self ~ 0 + (HR_self + HR_other) : type +  (0 + type | participant) + (0 + type | group),  subset(df1, study=="4"), REML=F,control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+summary(m2)
 ```
 
 
