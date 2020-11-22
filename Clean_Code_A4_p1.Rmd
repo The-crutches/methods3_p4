@@ -339,103 +339,183 @@ We can then run an analysis where change is a function of one's previous state (
 Bonus question: what if we include an additional layer? Is my heart rate just adjusting to yours, or also to how much you are adjusting to mine?
 - to start answering this we can add a column indicating the previous change in hr in the other and one in respiration
 - we can then build on the previous models by also adding the previous change in the other
-
 ```{r}
 #Loading data 
-df <- read_csv('HR_data_na1.csv')
+data <- read_csv('HR_data_na1.csv')
 
-# Generate a column for each: previous HR1, HR2, Resp1, Resp2. Tip: use the function Lag()
+  #Making factor
+data <- data %>% 
+        dplyr::mutate(across(where(is.character), as.factor))
 
-df <- df %>% 
-  group_by(trial, group) %>% 
-  mutate(HR1_lag = lag(HR1),
-         HR2_lag = lag(HR2),
-         Resp1_lag = lag(Resp1),
-         Resp2_lag = lag(Resp2))
-
-# Generate a column for each: change in HR1, HR2, Resp1, Resp2
-df <- df %>% 
-  mutate(HR1_change = HR1 - HR1_lag,
-         HR2_change = HR2 - HR2_lag,
-         Resp1_change = Resp1 - Resp1_lag,
-         Resp2_change = Resp2 - Resp2_lag)
-```
-
-```{r}
-#making the self and other HR column 
-HR_self <- pivot_longer(df, c(HR1,HR2), names_to = "participant", values_to = "HR_self") 
-
-
-HR_other <- pivot_longer(df, c(HR2,HR1), values_to = "HR_other") 
-
-#adding to a main dataframe 
-df1 <- cbind(HR_self, HR_other = HR_other$HR_other)
-
- 
-
-#making the resp self and resp other data frames
-Resp_self <- pivot_longer(df, c(Resp1, Resp2), values_to = "Resp_self")
-Resp_other <- pivot_longer(df, c(Resp2, Resp1), values_to = "Resp_other")
-
-#adding the pivotted columns to the main dataframe 
-df1 <- cbind(df1, 
-                 Resp_self = Resp_self$Resp_self, 
-                 Resp_other = Resp_other$Resp_other)
-
-
-#now we do it with hr change self and hr change other
-HR_change <- pivot_longer(df, c(HR1_change, HR2_change), values_to = "HR_change_self")
-HR_change_other <- pivot_longer(df, c(HR2_change, HR1_change), values_to = "HR_change_other")
-
-#adding to df
-df1 <- cbind(df1, 
-                 HR_change_self = HR_change$HR_change_self, 
-                 HR_change_other = HR_change_other$HR_change_other)
-
-#now we do it with resp change self and other
-Resp_change <- pivot_longer(df, c(Resp1_change, Resp2_change), values_to = "Resp_change_self")
-Resp_change_other <- pivot_longer(df, c(Resp2_change, Resp1_change), values_to = "Resp_change_other")
-#adding to df
-df1 <- cbind(df1, 
-                 Resp_change_self = Resp_change$Resp_change_self, 
-                 Resp_change_other = Resp_change_other$Resp_change_other)
-
-#now it's time for hr lag self and hr lag other 
-HR_lag <- pivot_longer(df, c(HR1_lag, HR2_lag), values_to = "HR_lag_self")
-HR_lag_other <- pivot_longer(df, c(HR2_lag, HR1_lag), values_to = "HR_lag_other")
-
-#adding to df
-df1 <- cbind(df1, 
-                 HR_lag_self = HR_lag$HR_lag_self, 
-                 HR_lag_other = HR_lag_other$HR_lag_other)
-
-
-#and finally resp lag self and resp lag other 
-Resp_lag <- pivot_longer(df, c(Resp1_lag, Resp2_lag), values_to = "Resp_lag_self")
-Resp_lag_other <- pivot_longer(df, c(Resp2_lag, Resp1_lag), values_to = "Resp_lag_other")
-
-#adding to df
-df1 <- cbind(df1, 
-                 Resp_lag_self = Resp_lag$Resp_lag_self, 
-                 Resp_lag_other = Resp_lag_other$Resp_lag_other)
+data <- data %>% mutate(
+  study = as.factor(study),
+  group = as.factor(group),
+  trial = as.factor(trial)
+  ) %>%
+  dplyr::select(-time)
   
-#making a nice participant column with unique numbers for each participant 
-df1 <- df1 %>% 
-  mutate(participant = paste0(group, str_extract(participant, ("\\d"))))
 
-##Saving data 
-#write_csv(df1, "final_df.csv")
+# get lags
+
+data <- data %>%
+  mutate(
+    HR1_lag = dplyr::lag(HR1, 1, order_by = file),
+    HR2_lag = dplyr::lag(HR2, 1, order_by = file),
+    Resp1_lag = dplyr::lag(Resp1, 1, order_by = file),
+    Resp2_lag = dplyr::lag(Resp2, 1, order_by = file)
+    )
+
+#hR1
+sub <- data %>% dplyr::select(file:type, time_new, HR1, HR2) 
+
+data1 <- sub %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+data1$ID <- paste0(data1$group, data1$ID)
+data1$ID <- as.factor(data1$ID)
+
+data1 <- data1 %>% dplyr::rename(HR_self = HR)
+
+#other hr
+
+sub2 <- data %>% dplyr::select(file:type, time_new, HR2, HR1) 
+
+data2 <- sub2 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+data2$ID <- paste0(data2$group, data2$ID)
+data2$ID <- as.factor(data2$ID)
+
+data2 <- data2 %>% dplyr::rename(HR_other = HR) %>% dplyr::select(HR_other)
+
+df <- cbind(data1, data2)
+
+#hr 1 lagged
+
+sub_x1 <- data %>% dplyr::select(file:type, time_new, HR1_lag, HR2_lag) 
+
+data_x1 <- sub_x1 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(\\D+)(\\d+)'
+  )
+
+data_x1$ID <- paste0(data_x1$group, data_x1$ID)
+data_x1$ID <- as.factor(data_x1$ID)
+
+data_x1 <- data_x1 %>% dplyr::rename(HR_self_lag = HR)
+
+#hr2 lagged
+sub_x2 <- data %>% dplyr::select(file:type, time_new, HR2_lag, HR1_lag) 
+
+data_x2 <- sub_x2 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(\\D+)(\\d+)'
+  )
+
+data_x2$ID <- paste0(data_x2$group, data_x2$ID)
+data_x2$ID <- as.factor(data_x2$ID)
+
+data_x2 <- data_x2 %>% dplyr::rename(HR_other_lag = HR) %>% dplyr::select(HR_other_lag)
+
+df3 <- cbind(data_x1, data_x2)
+
+df3 <- df3 %>% dplyr::select(HR_self_lag, HR_other_lag)
+
+df4 <- cbind(df, df3)
+
+#resp 
+sub3 <- data %>% dplyr::select(file:type, time_new, Resp1, Resp2) 
+
+
+data3 <- sub3 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+data3$ID <- paste0(data3$group, data3$ID)
+data3$ID <- as.factor(data3$ID)
+data3 <- data3 %>% dplyr::rename(Resp_self = Resp)
+
+# resp other
+
+sub4 <- data %>% dplyr::select(file:type, time_new, Resp2, Resp1) 
+
+
+data4 <- sub4 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+data4$ID <- paste0(data4$group, data4$ID)
+data4$ID <- as.factor(data4$ID)
+data4 <- data4 %>% dplyr::rename(Resp_other = Resp) %>% dplyr::select(Resp_other)
+
+df2 <- cbind(data3, data4) %>% dplyr::select(Resp_self, Resp_other)
+
+#resp 1 lagged
+
+sub_x3 <- data %>% dplyr::select(file:type, time_new, Resp1_lag, Resp2_lag) 
+
+data_x3 <- sub_x3 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(\\D+)(\\d+)'
+  )
+
+data_x3$ID <- paste0(data_x3$group, data_x3$ID)
+data_x3$ID <- as.factor(data_x3$ID)
+
+data_x3 <- data_x3 %>% dplyr::rename(Resp_self_lag = Resp)
+
+# resp 2 lagged
+sub_x4 <- data %>% dplyr::select(file:type, time_new, Resp2_lag, Resp1_lag) 
+
+data_x4 <- sub_x4 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(\\D+)(\\d+)'
+  )
+
+data_x4$ID <- paste0(data_x4$group, data_x4$ID)
+data_x4$ID <- as.factor(data_x4$ID)
+
+data_x4 <- data_x4 %>% dplyr::rename(Resp_other_lag = Resp) %>% dplyr::select(Resp_other_lag)
+
+df5 <- cbind(data_x3, data_x4)
+df5 <- df5 %>% dplyr::select(Resp_self_lag, Resp_other_lag)
+
+#merge all
+
+data <- cbind(df4, df2, df5)
+
+
+#create change columns
+data <- data %>% 
+  mutate(HR_self_change = HR_self - HR_self_lag,
+         HR_other_change = HR_other - HR_other_lag,
+         Resp_self_change = Resp_self - Resp_self_lag,
+         Resp_other_change = Resp_other - Resp_other_lag)
+
+#write_csv(data, 'HR_data_long.csv')
 ```
+
 
 ```{r}
-#Loading final dataframe 
+#Loading new data set 
+data <- read_csv('HR_data_long.csv')
 
-data <- read_csv("final_df.csv")
-
-#removing unnessecary columns
-
-data <- data %>% select(-Resp1, -Resp2, -HR1_lag, -HR2_lag, -Resp1_lag, -Resp2_lag, -HR1_change, -HR2_change, -Resp1_change, -Resp2_change)
 ```
+
 
 
 ## Now we need to create control baselines.
@@ -452,21 +532,21 @@ Tip: sample() is your friend, but make sure to shuffle things within participant
 
 data$df_type <- "Real" 
 
-data_shuffled <- data %>% group_by(participant, type) %>%
+data_shuffled <- data %>% group_by(ID, type) %>%
   mutate(
     HR_self = sample(HR_self), # randomly samples values from the column
     HR_other = sample(HR_other),
-    HR_lag_self = sample(HR_lag_self),
-    HR_lag_other = sample(HR_lag_other),
-    HR_change_self = sample(HR_change_self),
-    HR_change_other = sample(HR_change_other),
+    HR_self_lag = sample(HR_self_lag),
+    HR_other_lag = sample(HR_other_lag),
+    HR_self_change = sample(HR_self_change),
+    HR_other_change = sample(HR_other_change),
     
     Resp_self = sample(Resp_self),
     Resp_other = sample(Resp_other),
-    Resp_lag_self = sample(Resp_lag_self),
-    Resp_lag_other = sample(Resp_lag_other),
-    Resp_change_self = sample(Resp_change_self),
-    Resp_change_other = sample(Resp_change_other),
+    Resp_self_lag = sample(Resp_self_lag),
+    Resp_other_lag = sample(Resp_other_lag),
+    Resp_self_change = sample(Resp_self_change),
+    Resp_other_change = sample(Resp_other_change),
     
     df_type = 'Shuffle')
 
@@ -474,8 +554,7 @@ data_shuffled <- data %>% group_by(participant, type) %>%
 # Concatenate it to the original dataset (and remember to have a column telling you which is which)
 # Create the same models as in the previous chunk, but adding an interaction by shuffled vs. real
 ```
- 
- 
+
 ### TRICKY! Creating controls: surrogate pair controls
  - Per each real pair, identify at least one surrogate pair (matching one of the participants, with somebody doing the same task, but in a different pair)
 
