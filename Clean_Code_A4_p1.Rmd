@@ -57,8 +57,11 @@ The data files can be found here: https://www.dropbox.com/sh/bvvk7t3fvsplh9o/AAD
 pacman::p_load(tidyverse, tidymodels, fs, groupdata2, dplyr, purrr)
 
 # Load the file
+
+  #Creating pattern for extracting file info
 pattern <- "Study(\\d+)_G(\\d+)_T(\\d+)_(\\w+)"
 
+  #Creating function to read file with pattern
 read_HR_test <- function(filename) {
     # getting filenames and subsetting them
     files = path_file(path = filename) 
@@ -184,7 +187,7 @@ read_HR <- function(filename, threshold) {
     
     # loading data
     df = read_csv(filename)
-                          # i manually renamed study 4 in the csv file, because it had a column named TimeMs instead of time. this will cause an error. 
+                          # i manually renamed study 4 in the csv file, because it had a column named TimeMs instead of time. This will cause an error. 
     
     #downsample the data
     df <- df %>% 
@@ -203,7 +206,7 @@ read_HR <- function(filename, threshold) {
     data <- data %>% 
       dplyr::mutate(across(where(is.numeric) & !time, z_scale))
     
-    #clean the frame
+    #clean the dataframe
       #renaming columns
     data <- data %>% dplyr::rename(
       file = V1, 
@@ -225,34 +228,25 @@ read_HR <- function(filename, threshold) {
     return(data)
 }
 
-#  Identify all files to be read
-# Run the function on the whole dataset using map_df
-
+#Trying function on one file
 test_data_HR = read_HR("Study1_G1_T1_Synchronous.csv", 2.5)
 
-# apply for all data, just change pattern to get all the files
+# Run the function on all files using map_df
+  # apply for all data, just change pattern to get all the files
+  
 data <- list.files(path = './data', pattern = '.csv', all.files = T, full.names = T) %>% 
     purrr::map_df(read_HR, 2.5)
 
+#Removing unnessecary columns
 data <- data %>% select(-ECG1, -ECG2, -ReadingStart, -ReadingStop, -min, -Signal1, -Signal2)
-<<<<<<< HEAD
-         
-# Now we need to make sure all the data are meaningful or something has to be removed
-# E.g. "Study1_G1_T1_Synchronous" has one bad respiration signal. We could replace it with NAs
-# plots plots plots
-# Remove bad data
-# Save the data
+
 ```
 
-=======
 
-#Loading the cleaned data 
 ```{r}
+
+#Loading dataset
 #data <- read_csv("HR_data_raw.csv")
-```
-
-
-```{r}
 
 # Now we need to make sure all the data are meaningful or something has to be removed
 
@@ -320,6 +314,7 @@ sum(is.na(data))
 ```
 
 ```{r}
+#Loading data with na's
 data <- read_csv("HR_data_na1.csv")
 ```
 
@@ -345,16 +340,101 @@ Bonus question: what if we include an additional layer? Is my heart rate just ad
 - to start answering this we can add a column indicating the previous change in hr in the other and one in respiration
 - we can then build on the previous models by also adding the previous change in the other
 
+```{r}
+#Loading data 
+df <- read_csv('HR_data_na1.csv')
+
+# Generate a column for each: previous HR1, HR2, Resp1, Resp2. Tip: use the function Lag()
+
+df <- df %>% 
+  group_by(trial, group) %>% 
+  mutate(HR1_lag = lag(HR1),
+         HR2_lag = lag(HR2),
+         Resp1_lag = lag(Resp1),
+         Resp2_lag = lag(Resp2))
+
+# Generate a column for each: change in HR1, HR2, Resp1, Resp2
+df <- df %>% 
+  mutate(HR1_change = HR1 - HR1_lag,
+         HR2_change = HR2 - HR2_lag,
+         Resp1_change = Resp1 - Resp1_lag,
+         Resp2_change = Resp2 - Resp2_lag)
+```
 
 ```{r}
-# Generate a column for each: previous HR1, HR2, Resp1, Resp2. Tip: use the function Lag()
-# Generate a column for each: change in HR1, HR2, Resp1, Resp2
-# Make the data long, so we can analyze both participants at the same time. Tip: you can use the function gather () 
-## N.B. This is a bit tricky and you might have to do it in several steps
-# Set the most interesting contrast e.g. by defining synchronous or conversation as the baseline
-# Model change as a function of own and other previous state 
-# Bonus points: Add to the previous model also change in the other to see whether my adaptation is influenced by the other's adaptation.
+#making the self and other HR column 
+HR_self <- pivot_longer(df, c(HR1,HR2), names_to = "participant", values_to = "HR_self") 
 
+
+HR_other <- pivot_longer(df, c(HR2,HR1), values_to = "HR_other") 
+
+#adding to a main dataframe 
+df1 <- cbind(HR_self, HR_other = HR_other$HR_other)
+
+ 
+
+#making the resp self and resp other data frames
+Resp_self <- pivot_longer(df, c(Resp1, Resp2), values_to = "Resp_self")
+Resp_other <- pivot_longer(df, c(Resp2, Resp1), values_to = "Resp_other")
+
+#adding the pivotted columns to the main dataframe 
+df1 <- cbind(df1, 
+                 Resp_self = Resp_self$Resp_self, 
+                 Resp_other = Resp_other$Resp_other)
+
+
+#now we do it with hr change self and hr change other
+HR_change <- pivot_longer(df, c(HR1_change, HR2_change), values_to = "HR_change_self")
+HR_change_other <- pivot_longer(df, c(HR2_change, HR1_change), values_to = "HR_change_other")
+
+#adding to df
+df1 <- cbind(df1, 
+                 HR_change_self = HR_change$HR_change_self, 
+                 HR_change_other = HR_change_other$HR_change_other)
+
+#now we do it with resp change self and other
+Resp_change <- pivot_longer(df, c(Resp1_change, Resp2_change), values_to = "Resp_change_self")
+Resp_change_other <- pivot_longer(df, c(Resp2_change, Resp1_change), values_to = "Resp_change_other")
+#adding to df
+df1 <- cbind(df1, 
+                 Resp_change_self = Resp_change$Resp_change_self, 
+                 Resp_change_other = Resp_change_other$Resp_change_other)
+
+#now it's time for hr lag self and hr lag other 
+HR_lag <- pivot_longer(df, c(HR1_lag, HR2_lag), values_to = "HR_lag_self")
+HR_lag_other <- pivot_longer(df, c(HR2_lag, HR1_lag), values_to = "HR_lag_other")
+
+#adding to df
+df1 <- cbind(df1, 
+                 HR_lag_self = HR_lag$HR_lag_self, 
+                 HR_lag_other = HR_lag_other$HR_lag_other)
+
+
+#and finally resp lag self and resp lag other 
+Resp_lag <- pivot_longer(df, c(Resp1_lag, Resp2_lag), values_to = "Resp_lag_self")
+Resp_lag_other <- pivot_longer(df, c(Resp2_lag, Resp1_lag), values_to = "Resp_lag_other")
+
+#adding to df
+df1 <- cbind(df1, 
+                 Resp_lag_self = Resp_lag$Resp_lag_self, 
+                 Resp_lag_other = Resp_lag_other$Resp_lag_other)
+  
+#making a nice participant column with unique numbers for each participant 
+df1 <- df1 %>% 
+  mutate(participant = paste0(group, str_extract(participant, ("\\d"))))
+
+##Saving data 
+#write_csv(df1, "final_df.csv")
+```
+
+```{r}
+#Loading final dataframe 
+
+data <- read_csv("final_df.csv")
+
+#removing unnessecary columns
+
+data <- data %>% select(-Resp1, -Resp2, -HR1_lag, -HR2_lag, -Resp1_lag, -Resp2_lag, -HR1_change, -HR2_change, -Resp1_change, -Resp2_change)
 ```
 
 
@@ -369,6 +449,28 @@ Tip: sample() is your friend, but make sure to shuffle things within participant
  
 ```{r}
 # Create a shuffled dataset
+
+data$df_type <- "Real" 
+
+data_shuffled <- data %>% group_by(participant, type) %>%
+  mutate(
+    HR_self = sample(HR_self), # randomly samples values from the column
+    HR_other = sample(HR_other),
+    HR_lag_self = sample(HR_lag_self),
+    HR_lag_other = sample(HR_lag_other),
+    HR_change_self = sample(HR_change_self),
+    HR_change_other = sample(HR_change_other),
+    
+    Resp_self = sample(Resp_self),
+    Resp_other = sample(Resp_other),
+    Resp_lag_self = sample(Resp_lag_self),
+    Resp_lag_other = sample(Resp_lag_other),
+    Resp_change_self = sample(Resp_change_self),
+    Resp_change_other = sample(Resp_change_other),
+    
+    df_type = 'Shuffle')
+
+
 # Concatenate it to the original dataset (and remember to have a column telling you which is which)
 # Create the same models as in the previous chunk, but adding an interaction by shuffled vs. real
 ```
