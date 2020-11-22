@@ -398,14 +398,22 @@ data <- data %>% mutate(
   study = as.factor(study),
   group = as.factor(group),
   trial = as.factor(trial)
-  )  %>%
-  select(-time)
+  ) %>%
+  dplyr::select(-time)
   
 
-# make sure you group the groups, to get individual participants.
+# get leads and lags
+
+data <- data %>%
+  mutate(
+    HR1_lag = dplyr::lag(HR1, 1, order_by = file),
+    HR2_lag = dplyr::lag(HR2, 1, order_by = file),
+    Resp1_lag = dplyr::lag(Resp1, 1, order_by = file),
+    Resp2_lag = dplyr::lag(Resp2, 1, order_by = file)
+    )
 
 #hR1
-sub <- data %>% select(file:type, time_new, HR1, HR2) 
+sub <- data %>% dplyr::select(file:type, time_new, HR1, HR2) 
 
 data1 <- sub %>%
   pivot_longer(!file:time_new,
@@ -420,7 +428,7 @@ data1 <- data1 %>% dplyr::rename(HR_self = HR)
 
 #other hr
 
-sub2 <- data %>% select(file:type, time_new, HR2, HR1) 
+sub2 <- data %>% dplyr::select(file:type, time_new, HR2, HR1) 
 
 data2 <- sub2 %>%
   pivot_longer(!file:time_new,
@@ -431,12 +439,47 @@ data2 <- sub2 %>%
 data2$ID <- paste0(data2$group, data2$ID)
 data2$ID <- as.factor(data2$ID)
 
-data2 <- data2 %>% dplyr::rename(HR_other = HR) %>% select(HR_other)
+data2 <- data2 %>% dplyr::rename(HR_other = HR) %>% dplyr::select(HR_other)
 
 df <- cbind(data1, data2)
 
+#hr 1 lagged
+
+sub_x1 <- data %>% dplyr::select(file:type, time_new, HR1_lag, HR2_lag) 
+
+data_x1 <- sub_x1 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(\\D+)(\\d+)'
+  )
+
+data_x1$ID <- paste0(data_x1$group, data_x1$ID)
+data_x1$ID <- as.factor(data_x1$ID)
+
+data_x1 <- data_x1 %>% dplyr::rename(HR_self_lag = HR)
+
+#hr2 lagged
+sub_x2 <- data %>% dplyr::select(file:type, time_new, HR2_lag, HR1_lag) 
+
+data_x2 <- sub_x2 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(\\D+)(\\d+)'
+  )
+
+data_x2$ID <- paste0(data_x2$group, data_x2$ID)
+data_x2$ID <- as.factor(data_x2$ID)
+
+data_x2 <- data_x2 %>% dplyr::rename(HR_other_lag = HR) %>% dplyr::select(HR_other_lag)
+
+df3 <- cbind(data_x1, data_x2)
+
+df3 <- df3 %>% dplyr::select(HR_self_lag, HR_other_lag)
+
+df4 <- cbind(df, df3)
+
 #resp 
-sub3 <- data %>% select(file:type, time_new, Resp1, Resp2) 
+sub3 <- data %>% dplyr::select(file:type, time_new, Resp1, Resp2) 
 
 
 data3 <- sub3 %>%
@@ -451,7 +494,7 @@ data3 <- data3 %>% dplyr::rename(Resp_self = Resp)
 
 # resp other
 
-sub4 <- data %>% select(file:type, time_new, Resp2, Resp1) 
+sub4 <- data %>% dplyr::select(file:type, time_new, Resp2, Resp1) 
 
 
 data4 <- sub4 %>%
@@ -462,34 +505,60 @@ data4 <- sub4 %>%
 
 data4$ID <- paste0(data4$group, data4$ID)
 data4$ID <- as.factor(data4$ID)
-data4 <- data4 %>% dplyr::rename(Resp_other = Resp) %>% select(Resp_other)
+data4 <- data4 %>% dplyr::rename(Resp_other = Resp) %>% dplyr::select(Resp_other)
 
-df2 <- cbind(data3, data4) %>% select(Resp_self, Resp_other)
+df2 <- cbind(data3, data4) %>% dplyr::select(Resp_self, Resp_other)
+
+#resp 1 lagged
+
+sub_x3 <- data %>% dplyr::select(file:type, time_new, Resp1_lag, Resp2_lag) 
+
+data_x3 <- sub_x3 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(\\D+)(\\d+)'
+  )
+
+data_x3$ID <- paste0(data_x3$group, data_x3$ID)
+data_x3$ID <- as.factor(data_x3$ID)
+
+data_x3 <- data_x3 %>% dplyr::rename(Resp_self_lag = Resp)
+
+# resp 2 lagged
+sub_x4 <- data %>% dplyr::select(file:type, time_new, Resp2_lag, Resp1_lag) 
+
+data_x4 <- sub_x4 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(\\D+)(\\d+)'
+  )
+
+data_x4$ID <- paste0(data_x4$group, data_x4$ID)
+data_x4$ID <- as.factor(data_x4$ID)
+
+data_x4 <- data_x4 %>% dplyr::rename(Resp_other_lag = Resp) %>% dplyr::select(Resp_other_lag)
+
+df5 <- cbind(data_x3, data_x4)
+df5 <- df5 %>% dplyr::select(Resp_self_lag, Resp_other_lag)
 
 #merge all
 
-data <- cbind(df, df2)
- 
-# byurakns code for group by does not work ...
+data <- cbind(df4, df2, df5)
 
-data <- data %>% group_by(trial, ID) %>% 
-  mutate(
-    HR_self_lead = lag(HR_self, 1),
-    HR_other_lead = lag(HR_other, 1),
-    Resp_self_lead = lag(Resp_self, 1),
-    Resp_other_lead = lag(Resp_other, 1)
-    )
 
-data <- data %>% group_by(trial, ID) %>% 
-  mutate(
-    HR_change_self = (HR_self - HR_self_lead),
-    HR_change_other = (HR_other - HR_other_lead),
-    Resp_change_self = (Resp_self - Resp_self_lead),
-    Resp_change_other = (Resp_other - Resp_other_lead)
-  )
+#create change columns
+data <- data %>% 
+  mutate(HR_self_change = HR_self - HR_self_lag,
+         HR_other_change = HR_other - HR_other_lag,
+         Resp_self_change = Resp_self - Resp_self_lag,
+         Resp_other_change = Resp_other - Resp_other_lag)
 
+write_csv(data, 'HR_data_long.csv')
+
+df <- read_csv('HR_data_long.csv')
 
 ```
+
 
 
 We can then run an analysis where change is a function of one's previous state (stability, see slides), and the other's previous state (coupling). Make sure to:
