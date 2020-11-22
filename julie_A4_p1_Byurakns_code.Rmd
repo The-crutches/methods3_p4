@@ -686,7 +686,7 @@ write_csv(df1, "final_df.csv")
 
 
 ```{r}
-df1 <- read_csv("final_df.csv")
+df1 <-read_csv("final_df.csv")
 ```
 
 
@@ -698,7 +698,7 @@ df1 <- read_csv("final_df.csv")
 df1$type <- as.factor(df1$type)
 
 # Relevel with conversation as baseline
-df1$type <- relevel(df1$type, ref = "Conversation")
+df1$type <- relevel(df1$type, ref = "Synchronous")
 levels(df1$type)
 
 ```
