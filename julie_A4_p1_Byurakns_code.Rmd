@@ -707,15 +707,37 @@ levels(df1$type)
 ```{r}
 # Model change as a function of own and other previous state 
 
-library(lme4)
+library(lme4, doParallel)
 
-m1 <- lmerTest::lmer(HR_change_self ~ 0 + (HR_self + HR_other) : type +  (0 + type | participant),  subset(df1, study=="4"), REML=F,control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+
+
+#df1 <- read_csv("HR_data_long.csv")
+
+
+df1$ID <- as.factor(df1$ID)
+df1$time_new <- as.factor(df1$ID)
+df1$type <- as.factor(df1$type)
+df1$study <- as.factor(df1$study)
+df1$trial <- as.factor(df1$trial)
+df1$group <- as.factor(df1$group)
+
+
+
+doParallel::registerDoParallel()
+
+m1 <- lmerTest::lmer(HR_self_change ~ 0 + (HR_self_lag + HR_other_lag) : type +  (0 + type | ID),  subset(df1, study=="4"), REML=F,control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
 
 summary(m1)
 
-m2 <- lmerTest::lmer(HR_change_self ~ 0 + (HR_self + HR_other) : type +  (0 + type | participant) + (0 + type | group),  subset(df1, study=="4"), REML=F,control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+m2 <- lmerTest::lmer(HR_self_change ~ 0 + (HR_self_lag + HR_other_lag) : type +  (0 + type | ID) + (0 + type | group),  subset(df1, study=="4"), REML=F,control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
 
 summary(m2)
+
+
+m3 <- lmerTest::lmer(Resp_self_change ~ 0 + (Resp_self_lag + Resp_other_lag) : type +  (0 + type | ID) + (0 + type | group),  subset(df1, study=="4"), REML=F,control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+summary(m3)
 ```
 
 
@@ -733,6 +755,48 @@ Tip: sample() is your friend, but make sure to shuffle things within participant
 # Concatenate it to the original dataset (and remember to have a column telling you which is which)
 # Create the same models as in the previous chunk, but adding an interaction by shuffled vs. real
 ```
+  
+```{r}
+# Create a shuffled dataset
+
+data <- data %>% 
+  mutate(participant = paste0(group, str_extract(participant, ("\\d"))))
+
+data$df_type <- "Real" 
+
+data_shuffled <- data %>% group_by(ID, type) %>%
+  mutate(
+    HR_self = sample(HR_self), # randomly samples values from the column
+    HR_other = sample(HR_other),
+    HR_self_lead = sample(HR_self_lead),
+    HR_other_lead = sample(HR_other_lead),
+    HR_change_self = sample(HR_change_self),
+    HR_change_other = sample(HR_change_other),
+    
+    Resp_self = sample(Resp_self),
+    Resp_other = sample(Resp_other),
+    Resp_self_lead = sample(Resp_self_lead),
+    Resp_other_lead = sample(Resp_other_lead),
+    Resp_change_self = sample(Resp_change_self),
+    Resp_change_other = sample(Resp_change_other),
+    
+    df_type = 'Shuffle')
+
+
+# Concatenate it to the original dataset (and remember to have a column telling you which is which)
+
+df_shuff <- bind_rows(data, data_shuffled)
+# Create the same models as in the previous chunk, but adding an interaction by shuffled vs. real
+
+df_shuff$df_type <- as.factor(df_shuff$df_type)
+df_shuff$type <- as.factor(df_shuff$type)
+
+m1 <- lmerTest::lmer(HR_change_self ~ 0 + (HR_self + HR_other) : df_type : type +(0 + type | ID),  subset(df_shuff, study=="4"), REML=F,control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+summary(m1)
+
+m2 <- lmerTest::lmer(HR_change_self ~ 0 + (HR_self + HR_other) : type:df_type +(0 | ID) + (0 | group),  subset(df_shuff, study=="4"), REML=F,control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+```
  
  
 ### TRICKY! Creating controls: surrogate pair controls
@@ -745,6 +809,33 @@ Tip: sample() is your friend, but make sure to shuffle things within participant
 # Create models as in chunks above, but adding an interaction with the Real vs. Surrogate variable (exclude shuffled ones for simplicity)
 ```
  
+```{r}
+# Identify unique pairs within a given study (to keep things manageable) and create list of possible surrogate pairs (e.g. individual 1 from pair 1 and individual 2 from pair 2)
+# Making a new dataframe with surrogate pair id's
+set.seed(125)
+sur <- df1 %>% 
+  #Grouping by study and trial
+  group_by(study,trial)
+  
+#Getting unique participant IDs
+sur <- summarise(ID == unique(ID))
+
+#Extracting info on whether they are par1 or par2 in a pair
+sur <- sur %>% 
+  mutate(par = str_extract(as.character(ID), "(\d)[^\d]*$"), sur)
+
+#Making seperate columns for par1 and par2 
+pivot_wider(names_from = participant, values_from = participant, data = sur) 
+  
+# Renaming the variables
+rename(
+  par1 = 3,
+  par2 = 4
+) 
+  
+  
+```
+
 
 ### Effects of respiration coordination on heart rate coordination
  - describe how you would test those.
