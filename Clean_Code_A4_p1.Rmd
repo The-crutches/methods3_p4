@@ -519,7 +519,21 @@ data <- data %>% select(-file...9) %>% dplyr::rename(file = file...1)
 
 ```{r}
 #Loading new data set 
-data <- read_csv('HR_data_long.csv')
+data <- read_csv('HR_data_long_final.csv')
+
+#Correcting classes 
+data <- data %>% mutate(
+  study = as.factor(study),
+  group = as.factor(group),
+  trial = as.factor(trial),
+  file = as.factor(file), 
+  ID = as.factor(ID), 
+  type = as.factor(type), 
+time_new = as.factor(time_new)
+  )
+
+#Creating models 
+
 
 ```
 
