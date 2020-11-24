@@ -354,19 +354,20 @@ data <- data %>%
 data <- data %>% mutate(
   study = as.factor(study),
   group = as.factor(group),
-  trial = as.factor(trial)
+  trial = as.factor(trial),
+  file = as.factor(file)
   ) %>%
   dplyr::select(-time)
   
 
 # get lags
 
-data <- data %>%
+data <- data %>% group_by(file) %>% 
   mutate(
-    HR1_lag = dplyr::lag(HR1, 1, order_by = file),
-    HR2_lag = dplyr::lag(HR2, 1, order_by = file),
-    Resp1_lag = dplyr::lag(Resp1, 1, order_by = file),
-    Resp2_lag = dplyr::lag(Resp2, 1, order_by = file)
+    HR1_lag = lag(HR1, k = -1),
+    HR2_lag = lag(HR2,k = -1),
+    Resp1_lag = lag(Resp1, k = -1),
+    Resp2_lag = lag(Resp2, k = -1)
     )
 
 #hR1
@@ -510,7 +511,9 @@ data <- data %>%
          Resp_self_change = Resp_self - Resp_self_lag,
          Resp_other_change = Resp_other - Resp_other_lag)
 
-#write_csv(data, 'HR_data_long.csv')
+data <- data %>% select(-file...9) %>% dplyr::rename(file = file...1)
+
+#write_csv(data, 'HR_data_long_final.csv')
 ```
 
 
