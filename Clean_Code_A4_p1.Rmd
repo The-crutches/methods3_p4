@@ -220,6 +220,9 @@ read_HR <- function(filename, threshold) {
       data$group <- paste0(data$study, data$group)
       data$.groups <- NULL
       
+      #add surrogate time column
+      data$time_new <- 1:nrow(data)
+      
       #correcting classes
       data <- data %>% 
         dplyr::mutate(across(where(is.character), as.factor))
