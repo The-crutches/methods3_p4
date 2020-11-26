@@ -616,50 +616,96 @@ summary(m2_shuff)
 ```
  
 ```{r}
-Groups <- as.numeric(as.character(unique(df$group[df$study == 1])))
+# Identify unique pairs within a given study (to keep things manageable) and create list of possible surrogate pairs (e.g. individual 1 from pair 1 and individual 2 from pair 2)
+  # Starting from the wide format, create "surrogate" dataset with the data from surrogate pairs
 
-SurrogateList <- expand.grid(a = Groups, b = Groups) %>% filter(a!=b)
+data <- read_csv('HR_data_na1.csv')
 
-Groups2 <- as.numeric(as.character(unique(df$group[data$study == 2])))
+data <- data %>% mutate(
+  study = as.factor(study),
+  group = as.factor(group),
+  trial = as.factor(trial),
+  time_new = as.factor(time_new)
+  )
 
-SurrogateList2 <- expand.grid(a = Groups2, b = Groups2) %>% filter(a!=b)
+data <- data %>% group_by(file) %>% 
+  mutate(
+    HR1_lag = dplyr::lag(HR1, 1),
+    HR2_lag = dplyr::lag(HR2, 1),
+    Resp1_lag = dplyr::lag(Resp1, 1),
+    Resp2_lag = dplyr::lag(Resp2, 1)
+    )
 
-Groups3 <- as.numeric(as.character(unique(data$group[data$study == 3])))
 
-SurrogateList3 <- expand.grid(a = Groups3, b = Groups3) %>% filter(a!=b)
+data <- data %>% 
+  mutate(HR1_change = HR1 - HR1_lag,
+         HR2_change = HR2 - HR2_lag,
+         Resp1_change = Resp1 - Resp1_lag,
+         Resp2_change = Resp2 - Resp2_lag)
 
-Groups4 <- as.numeric(as.character(unique(data$group[data$study == 4])))
 
-SurrogateList4 <- expand.grid(a = Groups4, b = Groups) %>% filter(a!=b)
+groups <- as.numeric(as.character(unique(data$group[data$study == 1])))
+surrogatelist <- expand.grid(a = groups, b = groups)
+surrogatelist1 <- subset(surrogatelist, a != b)
 
-SurrogateList_a <- rbind(SurrogateList1, SurrogateList12, SurrogateList13)
-SurrogateList_b <- rbind(SurrogateList, SurrogateList2, SurrogateList3, SurrogateList4)
+groups <- as.numeric(as.character(unique(data$group[data$study == 2])))
+surrogatelist <- expand.grid(a = groups, b = groups)
+surrogatelist2 <- subset(surrogatelist, a != b)
 
-for (i in 1:row(SurrogateList_a)){
-  x <- subset(df, Group == SurrogateList$a[i])
-  y <- subset(df, Group == SurrogateList$b[i])
-  
-  group <- (c(800 +(1:4)*i))
-  for(co in c("Synchronous", "TurnTaking", "SelfPaced", "Conversation")) {
-    if(co %>% unique(x$type) & co %>% unique(y$type)){
+groups <- as.numeric(as.character(unique(data$group[data$study == 3])))
+surrogatelist <- expand.grid(a = groups, b = groups)
+surrogatelist3 <- subset(surrogatelist, a != b)
+
+surrogate <- rbind(surrogatelist1, surrogatelist2, surrogatelist3)
+
+for (i in 1:nrow(surrogate)){
+  x <- subset(data, group == surrogatelist$a[i])
+  y <- subset(data, group == surrogatelist$b[i])
+  group <- c(800 + ((1:4)*i))
+  for (co in c('Synchronous', 'TurnTaking', 'SelfPaced', 'Conversation')){
+    if (co %in% unique(x$type) & co %in% unique(y$type)){
       z1 <- subset(x, type == co)
       z2 <- subset(y, type == co)
     }
-    if(nrow(z1) > nrow(z2)){
-      z1 <- z1[-((nrow(z1)+1):nrow(z2)),]
+    if (nrow(z1) > nrow(z2)){
+      z1 <- z1[-((nrow(z2)+1):nrow(z1)),]
     }
-    if(nrow(z2) > nrow(z1)){
+    if (nrow(z2) > nrow(z1)){
       z2 <- z2[-((nrow(z1)+1):nrow(z2)),]
     }
     w1 <- z1 %>% mutate(
-      HR2
-    )
+      HR2 = z2$HR2,
+      Resp2 = z2$Resp2,
+      HR2_lead = z2$HR2_lag,
+      Resp2_lead = z2$Resp2_lag,
+      HR2_change = z2$HR2_change,
+      Resp2_change = z2$Resp2_change)
+    w1$group <- group[1]
+    w1$df_type <- 'Surrogate'
+    w <- w1
+    if(exists('d_surrogate')){
+      d_surrogate <- rbind(d_surrogate, w)
+    } else{
+      d_surrogate <- w
+    }
+    
   }
 }
 
-```
- 
+# Make it into long format
+surrogate_data <- 
+  
+# Create models as in chunks above, but adding an interaction with the Real vs. Surrogate variable (exclude shuffled ones for simplicity)
 
+m1_surrogate <- lmerTest::lmer(HR_self_change ~ 0 + (HR_nself + HR_diff) : type : df_type + (0 + type| ID) + (0 + type| group), subset(surrogate_data, study=="4"), REML=F,control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+summary(m1_surrogate)
+
+  #For respiration, model failed to converge, removed random slopes 
+m2_surrogate <- lmerTest::lmer(Resp_self_change ~ 0 + (Resp_nself + Resp_diff) : type : df_type + (1| ID) + (1| group), subset(surrogate_data, study=="4"), REML=F,control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+summary(m2_surrogate)
+```
 ### Effects of respiration coordination on heart rate coordination
  - describe how you would test those.
  - Optional: run the models and report them
