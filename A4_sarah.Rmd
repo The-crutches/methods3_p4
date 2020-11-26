@@ -711,7 +711,19 @@ groups <- as.numeric(as.character(unique(data$group[data$study == 1])))
 surrogatelist <- expand.grid(a = groups, b = groups)
 surrogatelist1 <- subset(surrogatelist, a != b)
 
-surrogate <- rbind(surrogatelist1, surrogatelist)
+groups <- as.numeric(as.character(unique(data$group[data$study == 2])))
+surrogatelist <- expand.grid(a = groups, b = groups)
+surrogatelist2 <- subset(surrogatelist, a != b)
+
+groups <- as.numeric(as.character(unique(data$group[data$study == 3])))
+surrogatelist <- expand.grid(a = groups, b = groups)
+surrogatelist3 <- subset(surrogatelist, a != b)
+
+groups <- as.numeric(as.character(unique(data$group[data$study == 4])))
+surrogatelist <- expand.grid(a = groups, b = groups)
+surrogatelist4 <- subset(surrogatelist, a != b)
+
+surrogate <- rbind(surrogatelist1, surrogatelist2, surrogatelist3)
 
 for (i in 1:nrow:(surrogate)){
   x <- subset(data, group == surrogatelist$a[i])
