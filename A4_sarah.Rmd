@@ -553,9 +553,7 @@ data <- data %>%
          Resp_self_change = Resp_self - Resp_self_lag,
          Resp_other_change = Resp_other - Resp_other_lag)
 
-write_csv(data, 'HR_data_long.csv')
-
-df <- read_csv('HR_data_long.csv')
+#write_csv(data, 'HR_data_long.csv')
 
 ```
 
@@ -573,19 +571,48 @@ Bonus question: what if we include an additional layer? Is my heart rate just ad
 
 ```{r}
 # Set the most interesting contrast e.g. by defining synchronous or conversation as the baseline
+
+data <- read_csv('HR_data_long_final.csv')
+
+data <- data %>% 
+        dplyr::mutate(across(where(is.character), as.factor))
+
+data <- data %>% mutate(
+  study = as.factor(study),
+  group = as.factor(group),
+  trial = as.factor(trial),
+  time_new = as.factor(time_new),
+  ID = as.factor(ID)
+  )
+
 # Model change as a function of own and other previous state 
 
 data_study1 = data %>% filter(study == 1)
+data_study4 = data %>% filter(study == 4)
 data_study1_ID111 = data %>% filter(ID == 111)
-data_study1_synch = data %>% filter(study == 1 & type == 'Synchronous')
-data_study1_group11 = data %>% filter(study == 1 & group == 11)
+data_study1_synch = data %>% filter(study == 11 | study == 13 & type == 'Synchronous')
+data_study1_group11 = data %>% filter(study == 1 | group == 11)
+data_study1and2 = data %>% filter(study == 1 | study == 2)
+data_study1and2and3 = data %>% filter(study == 1 | study == 2 | study == 3)
 
-library(lme4)
+
+library(lme4, lmerTest)
+
 doParallel::registerDoParallel()
 
-m1 = lmer(HR_change_self ~ 0 + (HR_self + HR_other)*type + (0 + type|ID), REML = F, control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE), data = data_study1_group11)
+m1 = lmerTest::lmer(HR_self_change ~ 0 + (HR_self + HR_other):type + (0+type|ID),
+          REML = F, control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE),
+          data = data)
+summary(m1)
 
-m1
+
+m2 = lmerTest::lmer(HR_self_change ~ 0 + (HR_self_lag + HR_other_lag):type + (0 + type|ID) + (0+type|group),
+          REML = F, control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE),
+          data = data_study4)
+
+m2
+
+
 # Bonus points: Add to the previous model also change in the other to see whether my adaptation is influenced by the other's adaptation.
 ```
 
@@ -608,20 +635,38 @@ data_shuffled <- data %>% group_by(ID, type) %>%
   mutate(
     HR_self = sample(HR_self), # randomly samples values from the column
     HR_other = sample(HR_other),
-    HR_self_lead = sample(HR_self_lead),
-    HR_other_lead = sample(HR_other_lead),
-    HR_change_self = sample(HR_change_self),
-    HR_change_other = sample(HR_change_other),
+    HR_self_lag = sample(HR_self_lag),
+    HR_other_lag = sample(HR_other_lag),
     
     Resp_self = sample(Resp_self),
     Resp_other = sample(Resp_other),
-    Resp_self_lead = sample(Resp_self_lead),
-    Resp_other_lead = sample(Resp_other_lead),
-    Resp_change_self = sample(Resp_change_self),
-    Resp_change_other = sample(Resp_change_other),
+    Resp_self_lag = sample(Resp_self_lag),
+    Resp_other_lag = sample(Resp_other_lag),
+    
+    HR_self_change = sample(HR_self_change),
+    HR_other_change = sample(HR_other_change),
+    
+    Resp_self_change = sample(Resp_self_change),
+    Resp_other_change = sample(Resp_other_change),
     
     df_type = 'Shuffle')
 
+data_incl_shuffle <- rbind(data, data_shuffled)
+
+data_incl_shuffle_study4 <- data_incl_shuffle %>% filter(study == 4)
+
+
+m1 = lmerTest::lmer(HR_self_change ~ 0 + (HR_self + HR_other):type + df_type + (0+type|group),
+          REML = F, control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE),
+          data = data_incl_shuffle_study4)
+summary(m1)
+
+
+m2 = lmerTest::lmer(HR_self_change ~ 0 + (HR_self_lag + HR_other_lag):type + df_type + (0 + type|ID) + (0+type|group),
+          REML = F, control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE),
+          data = data_incl_shuffle_study4)
+
+summary(m2)
 
 # Concatenate it to the original dataset (and remember to have a column telling you which is which)
 # Create the same models as in the previous chunk, but adding an interaction by shuffled vs. real
@@ -636,6 +681,72 @@ data_shuffled <- data %>% group_by(ID, type) %>%
 # Starting from the wide format, create "surrogate" dataset with the data from surrogate pairs
 # Make it into long format
 # Create models as in chunks above, but adding an interaction with the Real vs. Surrogate variable (exclude shuffled ones for simplicity)
+
+data <- read_csv('HR_data_na1.csv')
+
+data <- data %>% mutate(
+  study = as.factor(study),
+  group = as.factor(group),
+  trial = as.factor(trial),
+  time_new = as.factor(time_new)
+  )
+
+data <- data %>% group_by(file) %>% 
+  mutate(
+    HR1_lag = dplyr::lag(HR1, 1),
+    HR2_lag = dplyr::lag(HR2, 1),
+    Resp1_lag = dplyr::lag(Resp1, 1),
+    Resp2_lag = dplyr::lag(Resp2, 1)
+    )
+
+
+data <- data %>% 
+  mutate(HR1_change = HR1 - HR1_lag,
+         HR2_change = HR2 - HR2_lag,
+         Resp1_change = Resp1 - Resp1_lag,
+         Resp2_change = Resp2 - Resp2_lag)
+
+
+groups <- as.numeric(as.character(unique(data$group[data$study == 1])))
+surrogatelist <- expand.grid(a = groups, b = groups)
+surrogatelist1 <- subset(surrogatelist, a != b)
+
+surrogate <- rbind(surrogatelist1, surrogatelist)
+
+for (i in 1:nrow:(surrogate)){
+  x <- subset(data, group == surrogatelist$a[i])
+  y <- subset(data, group == surrogatelist$b[i])
+  group <- c(800 + ((1:4)*i))
+  for (co in c('Synchronous', 'TurnTaking', 'SelfPaced', 'Conversation')){
+    if (co %in% unique(x$type) & co %in% unique(y$type)){
+      z1 <- subset(x, type == co)
+      z2 <- subset(y, type == co)
+    }
+    if (nrow(z1) > nrow(z2)){
+      z1 <- z1[-((nrow(z2)+1):nrow(z1)),]
+    }
+    if (nrow(z2) > nrow(z1)){
+      z2 <- z2[-((nrow(z1)+1):nrow(z2)),]
+    }
+    w1 <- z1 %>% mutate(
+      HR2 = z2$HR2,
+      Resp2 = z2$Resp2,
+      HR2_lead = z2$HR2_lag,
+      Resp2_lead = z2$Resp2_lag,
+      HR2_change = z2$HR2_change,
+      Resp2_change = z2$Resp2_change)
+    w1$group <- group[1]
+    w1$df_type <- 'Surrogate'
+    w <- w1
+    if(exists('d_surrogate')){
+      d_surrogate <- rbind(d_surrogate, w)
+    } else{
+      d_surrogate <- w
+    }
+    
+  }
+}
+
 ```
  
 
