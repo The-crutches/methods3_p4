@@ -54,7 +54,7 @@ The data files can be found here: https://www.dropbox.com/sh/bvvk7t3fvsplh9o/AAD
 
 ```{r}
 # Load the libraries
-pacman::p_load(tidyverse, tidymodels, fs, groupdata2, dplyr, purrr)
+pacman::p_load(tidyverse, tidymodels, fs, groupdata2, dplyr, purrr, lme4, lmerTest)
 
 # Load the file
 
@@ -532,9 +532,25 @@ data <- data %>% mutate(
 time_new = as.factor(time_new)
   )
 
-#Creating models 
+#Creating new column for the model 
 
+data <- data %>% mutate(
+  HR_diff = HR_other - HR_self, 
+  HR_nself = 0 - HR_self,
+  
+  Resp_diff = Resp_other - Resp_self, 
+  Resp_nself = 0 - Resp_self)
+  
+#Creating model 
 
+m1 <- lmerTest::lmer(HR_self_change ~ 0 + (HR_nself + HR_diff) : type + (0 + type | ID) + (0 + type | group) + (0 + type | study), data, REML=F,control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+summary(m1)
+
+  #For respiration, model failed to converge, removed random slopes 
+m2 <- lmerTest::lmer(Resp_self_change ~ 0 + (Resp_nself + Resp_diff) : type + (1 | ID) + (1 | group), subset(data, study=="4"), REML=F,control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+summary(m2)
 ```
 
 
@@ -552,7 +568,7 @@ Tip: sample() is your friend, but make sure to shuffle things within participant
 
 data$df_type <- "Real" 
 
-data_shuffled <- data %>% group_by(ID, type) %>%
+data_shuffled <- data %>% group_by(file) %>%
   mutate(
     HR_self = sample(HR_self), # randomly samples values from the column
     HR_other = sample(HR_other),
@@ -560,6 +576,8 @@ data_shuffled <- data %>% group_by(ID, type) %>%
     HR_other_lag = sample(HR_other_lag),
     HR_self_change = sample(HR_self_change),
     HR_other_change = sample(HR_other_change),
+    HR_diff = sample(HR_diff), 
+    HR_nself = sample(HR_nself),
     
     Resp_self = sample(Resp_self),
     Resp_other = sample(Resp_other),
@@ -567,12 +585,24 @@ data_shuffled <- data %>% group_by(ID, type) %>%
     Resp_other_lag = sample(Resp_other_lag),
     Resp_self_change = sample(Resp_self_change),
     Resp_other_change = sample(Resp_other_change),
+    Resp_diff = sample(Resp_diff), 
+    Resp_nself = sample(Resp_nself),
     
     df_type = 'Shuffle')
 
-
 # Concatenate it to the original dataset (and remember to have a column telling you which is which)
+shuffled_data <- bind_rows(data, data_shuffled)
+
 # Create the same models as in the previous chunk, but adding an interaction by shuffled vs. real
+
+m1_shuff <- lmerTest::lmer(HR_self_change ~ 0 + (HR_nself + HR_diff) : type : df_type + (0 + type| ID) + (0 + type| group), subset(shuffled_data, study=="4"), REML=F,control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+summary(m1_shuff)
+
+  #For respiration, model failed to converge, removed random slopes 
+m2_shuff <- lmerTest::lmer(Resp_self_change ~ 0 + (Resp_nself + Resp_diff) : type : df_type + (1| ID) + (1| group), subset(shuffled_data, study=="4"), REML=F,control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+
+summary(m2_shuff)
 ```
 
 ### TRICKY! Creating controls: surrogate pair controls
@@ -583,6 +613,50 @@ data_shuffled <- data %>% group_by(ID, type) %>%
 # Starting from the wide format, create "surrogate" dataset with the data from surrogate pairs
 # Make it into long format
 # Create models as in chunks above, but adding an interaction with the Real vs. Surrogate variable (exclude shuffled ones for simplicity)
+```
+ 
+```{r}
+Groups <- as.numeric(as.character(unique(df$group[df$study == 1])))
+
+SurrogateList <- expand.grid(a = Groups, b = Groups) %>% filter(a!=b)
+
+Groups2 <- as.numeric(as.character(unique(df$group[data$study == 2])))
+
+SurrogateList2 <- expand.grid(a = Groups2, b = Groups2) %>% filter(a!=b)
+
+Groups3 <- as.numeric(as.character(unique(data$group[data$study == 3])))
+
+SurrogateList3 <- expand.grid(a = Groups3, b = Groups3) %>% filter(a!=b)
+
+Groups4 <- as.numeric(as.character(unique(data$group[data$study == 4])))
+
+SurrogateList4 <- expand.grid(a = Groups4, b = Groups) %>% filter(a!=b)
+
+SurrogateList_a <- rbind(SurrogateList1, SurrogateList12, SurrogateList13)
+SurrogateList_b <- rbind(SurrogateList, SurrogateList2, SurrogateList3, SurrogateList4)
+
+for (i in 1:row(SurrogateList_a)){
+  x <- subset(df, Group == SurrogateList$a[i])
+  y <- subset(df, Group == SurrogateList$b[i])
+  
+  group <- (c(800 +(1:4)*i))
+  for(co in c("Synchronous", "TurnTaking", "SelfPaced", "Conversation")) {
+    if(co %>% unique(x$type) & co %>% unique(y$type)){
+      z1 <- subset(x, type == co)
+      z2 <- subset(y, type == co)
+    }
+    if(nrow(z1) > nrow(z2)){
+      z1 <- z1[-((nrow(z1)+1):nrow(z2)),]
+    }
+    if(nrow(z2) > nrow(z1)){
+      z2 <- z2[-((nrow(z1)+1):nrow(z2)),]
+    }
+    w1 <- z1 %>% mutate(
+      HR2
+    )
+  }
+}
+
 ```
  
 
