@@ -180,15 +180,17 @@ ggplot(data = data) +
 ```{r}
 ## Downsample
 ### You can use the code below. It is almost the same as the one in the video lecture.
-#d1 = d %>%
-#  group(n = 100, method = 'greedy') %>%
-#  dplyr::summarise(
-#    time = mean(time,na.rm=T),
-#    HR1 = mean(HR1S,na.rm=T),
-#    HR2 = mean(HR2S,na.rm=T),
-#    Resp1 = mean(Resp1S,na.rm=T),
-#    Resp2 = mean(Resp2S,na.rm=T),
-#    rowname = rowname[1]) #the index we use to put them back together 
+downdata = data %>%
+  group(n = 100, method = 'greedy') %>%
+  dplyr::summarise(
+    time = mean(time,na.rm=T),
+    HR1 = mean(HR1S,na.rm=T),
+    HR2 = mean(HR2S,na.rm=T),
+    Resp1 = mean(Resp1S,na.rm=T),
+    Resp2 = mean(Resp2S,na.rm=T),
+    rowname = rowname[1]) #the index we use to put them back together 
+
+
 ## Plot the downsampled data. You can use the code from the slides
 ## Now add the group, trial, condition to the cleaned up, scaled, downsampled data
 ## Tip the info is in the file name
@@ -208,27 +210,306 @@ A couple of tips:
 
 ```{r}
 # Define a function running the loading, artifact removal, scaling, downsampling, info adding.
-data_preprocess <- function(filename, threshold = 2.5){
+#data_preprocess <- function(filename, threshold = 2.5){
   
   # To be filled in
   
-  return(d1)
-}
+#  return(d1)
+#}
 #  Identify all files to be read
 # Run the function on the whole dataset using map_df
+
+```
+
+
+```{r}
+#Loading a clean data frame
+data_clean <- read.csv("HR_data_na1.csv", header = T)
          
 # Now we need to make sure all the data are meaningful or something has to be removed
 # E.g. "Study1_G1_T1_Synchronous" has one bad respiration signal. We could replace it with NAs
 # plots plots plots
+
+ggplot(data = data_clean) + 
+  geom_path(aes(time, HR1, color = "P1")) + 
+  geom_path(aes(time, HR2, color = "P2")) + 
+  labs(x = "time", y = "HR") + 
+  facet_grid(~ group, scales = 'free')
+
+
+
 # Remove bad data
 # Save the data
 ```
+
+
+```{r}
+data <- read_csv('HR_data_na1.csv')
+
+data <- data %>% 
+        dplyr::mutate(across(where(is.character), as.factor))
+
+data <- data %>% mutate(
+  study = as.factor(study),
+  group = as.factor(group),
+  trial = as.factor(trial)
+  )  %>%
+  select(-time)
+  
+
+# make sure you group the groups, to get individual participants.
+
+#paste hr 1 or 2 to the group column
+
+# first create hr_self and hr_other
+
+data2 <- pivot_longer(data1, HR_self, HR1, HR2)
+
+data1 <- data %>% pivot_longer(
+  cols = c(HR1, HR2),
+  values_to = c("HR_all")
+)
+
+data1 <- data1 %>% select(-Resp1, -Resp2)
+
+datan2 <- data %>% pivot_longer(
+  cols = c(Resp1, Resp2),
+  values_to = c( "Resp_all")
+)
+datan2 <- datan2 %>% dplyr::rename(Resp_name = name)
+datan2 <- datan2 %>% select(-HR1, -HR2)
+
+#Cleaning participant names
+
+data1$ID <- paste0(data1$group, data1$name)
+data1$ID <- str_replace_all(data1$ID, "HR", "")
+
+datan2$ID <- paste0(datan2$group, datan2$Resp_name)
+datan2$ID <- str_replace_all(data1$ID, "Resp", "")
+df_long <- merge(data1, datan2, by = "ID")
+
+#might work to get hr and resp at the same time
+df %>% pivot_longer(!id, names_to = ".value", names_pattern = "(.).") #nope!
+
+#hR1
+sub <- data %>% select(file:type, time_new, HR1, HR2) 
+
+data1 <- sub %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+data1$ID <- paste0(data1$group, data1$ID)
+data1$ID <- as.factor(data1$ID)
+
+data1 <- data1 %>% dplyr::rename(HR_self = HR)
+
+#other hr
+
+sub2 <- data %>% select(file:type, time_new, HR2, HR1) 
+
+data2 <- sub2 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+data2$ID <- paste0(data2$group, data2$ID)
+data2$ID <- as.factor(data2$ID)
+
+data2 <- data2 %>% dplyr::rename(HR_other = HR) %>% select(HR_other)
+
+df <- cbind(data1, data2)
+
+#resp 
+sub3 <- data %>% select(file:type, time_new, Resp1, Resp2) 
+
+
+data3 <- sub3 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+data3$ID <- paste0(data3$group, data3$ID)
+data3$ID <- as.factor(data2$ID)
+data3 <- data3 %>% dplyr::rename(Resp_self = Resp)
+
+# resp other
+
+sub4 <- data %>% select(file:type, time_new, Resp2, Resp1) 
+
+
+data4 <- sub4 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+data4$ID <- paste0(data4$group, data4$ID)
+data4$ID <- as.factor(data4$ID)
+data4 <- data4 %>% dplyr::rename(Resp_other = Resp) %>% select(Resp_other)
+
+df2 <- cbind(data3, data4)
+
+#merge all
+
+data <- merge(df, df2)
+ 
+# get leads
+
+data <- data %>% 
+  mutate(
+    HR_self_lead = lead(HR_self),
+    HR_other_lead = lead(HR_other),
+    Resp_self_lead = lead(Resp_self),
+    Resp_other_lead = lead(Resp_other)
+    )
+
+data <- data %>% 
+  mutate(
+    HR_change_self = (HR_self - HR_self_lead),
+    HR_change_other = (HR_other - HR_other_lead),
+    Resp_change_self = (Resp_self - Resp_self_lead),
+    Resp_change_other = (Resp_other - Resp_other_lead)
+  )
+
+
+```
+
+#sarahs
+
+```{r}
+data <- read_csv('HR_data_na1.csv')
+
+data <- data %>% 
+        dplyr::mutate(across(where(is.character), as.factor))
+
+data <- data %>% mutate(
+  study = as.factor(study),
+  group = as.factor(group),
+  trial = as.factor(trial)
+  )  %>%
+  select(-time)
+
+
+data <- data %>% group_by(group, type) %>% mutate(
+  HR1_lead = lag(HR1, 1),
+  HR1_change = HR1_lead - HR1,
+  HR2_lead = lag(HR2, -1),
+  HR2_change = HR2_lead - HR2,
+  Resp1_lead = lag(Resp1, -1),
+  Resp1_change = Resp1_lead - Resp1,
+  Resp2_lead = lag(Resp2, -1),
+  Resp2_change = Resp2_lead - Resp2
+) %>% subset(!is.na(time))
+
+
+# make sure you group the groups, to get individual participants.
+
+#hR1
+sub <- data %>% select(file:type, time_new, HR1, HR2) 
+
+data1 <- sub %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+data1$ID <- paste0(data1$group, data1$ID)
+data1$ID <- as.factor(data1$ID)
+
+data1 <- data1 %>% dplyr::rename(HR_self = HR)
+
+#other hr
+
+sub2 <- data %>% select(file:type, time_new, HR2, HR1) 
+
+data2 <- sub2 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+data2$ID <- paste0(data2$group, data2$ID)
+data2$ID <- as.factor(data2$ID)
+
+data2 <- data2 %>% dplyr::rename(HR_other = HR) %>% select(HR_other)
+
+df <- cbind(data1, data2)
+
+#resp 
+sub3 <- data %>% select(file:type, time_new, Resp1, Resp2) 
+
+
+data3 <- sub3 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+data3$ID <- paste0(data3$group, data3$ID)
+data3$ID <- as.factor(data3$ID)
+data3 <- data3 %>% dplyr::rename(Resp_self = Resp)
+
+# resp other
+
+sub4 <- data %>% select(file:type, time_new, Resp2, Resp1) 
+
+
+data4 <- sub4 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+data4$ID <- paste0(data4$group, data4$ID)
+data4$ID <- as.factor(data4$ID)
+data4 <- data4 %>% dplyr::rename(Resp_other = Resp) %>% select(Resp_other)
+
+df2 <- cbind(data3, data4) %>% select(Resp_self, Resp_other)
+
+#merge all
+
+data <- cbind(df, df2)
+ 
+# byurakns code for group by does not work ...
+
+data <- data %>% group_by(ID, type) %>% 
+  mutate(
+    HR_self_lead = lead(HR_self),
+    HR_other_lead = lead(HR_other),
+    Resp_self_lead = lead(Resp_self),
+    Resp_other_lead = lead(Resp_other)
+    )
+
+data <- data %>% group_by(ID, type) %>% 
+  mutate(
+    HR_change_self = (HR_self - HR_self_lead),
+    HR_change_other = (HR_other - HR_other_lead),
+    Resp_change_self = (Resp_self - Resp_self_lead),
+    Resp_change_other = (Resp_other - Resp_other_lead)
+  )
+
+
+```
+
+
+
+
 
 ## Now we need to run some analysis
 
 Let's start with a multilevel model that accounts for 
 - stability (how each signal is autocorrelated)
 - interpersonal dependence (each signal is dependent from the previous state of the other signal)
+
+```{r}
+
+```
+
+
 
 The data needs to be further prepared, so we can analyze both participants in the same model.
 We need to turn the data into a long format:
@@ -255,6 +536,146 @@ Bonus question: what if we include an additional layer? Is my heart rate just ad
 # Model change as a function of own and other previous state 
 # Bonus points: Add to the previous model also change in the other to see whether my adaptation is influenced by the other's adaptation.
 ```
+
+#Long_df
+```{r}
+df <- read.csv("HR_data_long_final.csv")
+
+df <- df %>% mutate(
+  study = as.factor(study),
+  group = as.factor(group),
+  trial = as.factor(trial),
+  type = as.factor(type),
+  time_new = as.factor(time_new),
+  ID = as.factor(ID)
+)
+
+df1 <- filter(df, study == 1)
+
+levels(df1$study)
+
+df <- df %>% select (-HR1_lag, -HR2_lag, -Resp1_lag, -Resp2_lag, )
+```
+
+
+```{r}
+data <- read.csv("HR_data_na1.csv")
+
+data <- data %>% mutate(
+  study = as.factor(study),
+  group = as.factor(group),
+  trial = as.factor(trial),
+  type = as.factor(type),
+  time = as.factor(time)
+)
+
+data <- data %>% 
+  mutate(
+    HR_self_lead = lead(HR1),
+    HR_other_lead = lead(HR2),
+    Resp_self_lead = lead(Resp1),
+    Resp_other_lead = lead(Resp2)
+    )
+
+data <- data %>% 
+  mutate(
+    HR_change_self = (HR1 - HR_self_lead),
+    HR_change_other = (HR2 - HR_other_lead),
+    Resp_change_self = (Resp1 - Resp_self_lead),
+    Resp_change_other = (Resp2 - Resp_other_lead)
+  )
+
+```
+
+
+```{r}
+ggplot(data = data) + 
+  geom_path(aes(time_new, HR1, color = "Self")) + 
+  geom_path(aes(time_new, HR2, color = "Other")) + 
+  labs(x = "time", y = "HR") + 
+  facet_grid(type~ ., scales = 'free')
+
+
+ggplot(data = data) + 
+  #geom_point(aes(time_new, HR1, color = "Self")) + 
+  geom_smooth(aes(time_new, HR1, color = "Self"), method = lm) +
+  #geom_point(aes(time_new, HR2, color = "Other")) + 
+  geom_smooth(aes(time_new, HR2, color = "Other"), method = lm) +
+  labs(x = "time", y = "HR") + 
+  facet_grid(type~., scales = 'free')
+
+ggplot(data = data) + 
+  geom_smooth(aes(HR_change_self, HR2, color = "change self from other"), method = lm) +
+    geom_smooth(aes(HR_change_other, HR1, color = "change other from self"), method = lm) +
+    facet_grid(~ type, scales = 'free')
+
+ggplot(data = data) + 
+  geom_smooth(aes(HR_change_self, HR_self_lead, color = "self change lag"), method = lm) +
+    #geom_smooth(aes(HR2, HR1, color = "other vs self"), method = lm) +
+    facet_grid(~ type, scales = 'free')
+
+```
+
+```{r}
+ggplot(data = data) + 
+  geom_path(aes(time_new, HR1, color = "Self")) + 
+  geom_path(aes(time_new, HR_change_other, color = "Other")) + 
+  labs(x = "time", y = "HR") + 
+  facet_grid(type ~ ., scales = 'free')
+
+ggplot(data = data) + 
+  geom_path(aes(time_new, HR2, color = "Self")) + 
+  geom_path(aes(time_new, HR_change_self, color = "Other")) + 
+  labs(x = "time", y = "HR") + 
+  facet_grid(type~. , scales = 'free')
+
+```
+
+
+```{r}
+data %>% 
+  subset(study=="1") %>%
+  group_by(group, type) %>% 
+  mutate(time=seq(n())) %>%
+  subset(group == 11) %>%
+  ggplot() + geom_line(aes(time, HR1, color="HR_self")) + geom_line(aes(time, HR2, color="HR_other")) + facet_wrap(type ~ ., ncol =1 )+ labs(y = "HR") + ggtitle("Study 1, group 11")
+
+data %>% 
+  subset(study=="2") %>%
+  group_by(group, type) %>% 
+  mutate(time=seq(n())) %>%
+  subset(group == 28) %>%
+  ggplot() + geom_line(aes(time, HR1, color="HR_self")) + geom_line(aes(time, HR2, color="HR_other")) + facet_wrap(type ~ ., ncol =1 )+ labs(y = "HR") + ggtitle("Study 2, group 28")
+
+
+data %>% 
+  subset(study=="3") %>%
+  group_by(group, type) %>% 
+  mutate(time=seq(n())) %>%
+  subset(group == 37) %>%
+  ggplot() + geom_line(aes(time, HR1, color="HR_self")) + geom_line(aes(time, HR2, color="HR_other")) + facet_wrap(type ~ ., ncol =1 )+ labs(y = "HR") + ggtitle("Study 3, group 37")
+
+data %>% 
+  subset(study=="4") %>%
+  group_by(group, type) %>% 
+  mutate(time=seq(n())) %>%
+  subset(group == 43) %>%
+  ggplot() + geom_line(aes(time, HR1, color="HR_self")) + geom_line(aes(time, HR2, color="HR_other")) + facet_wrap(type ~ ., ncol =1 )+ labs(y = "HR") + ggtitle("Study 4, group 43")
+
+```
+
+
+
+```{r}
+#mclust
+pairdf <- mclust::hcRandomPairs(data)
+
+pairdf <- data %>% split(sample(data$group),rep(1,each=2))
+
+pairdf <- data %>% group_by(t) %>% mutate(
+  HR1s = sample(data$HR1))
+```
+
 
 
 ## Now we need to create control baselines.
@@ -287,3 +708,223 @@ Tip: sample() is your friend, but make sure to shuffle things within participant
 ### Effects of respiration coordination on heart rate coordination
  - describe how you would test those.
  - Optional: run the models and report them
+ 
+ 
+ 
+ 
+```{r}
+#Fra clean code
+data <- data %>%
+  mutate(
+    HR1_lag = dplyr::lag(HR1, 1, order_by = file),
+    HR2_lag = dplyr::lag(HR2, 1, order_by = file),
+    Resp1_lag = dplyr::lag(Resp1, 1, order_by = file),
+    Resp2_lag = dplyr::lag(Resp2, 1, order_by = file)
+    )
+```
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ #Pairs
+```{r}
+group <- as.numeric(as.character(unique(data$group[data$study==1])))
+SurragateList1 <- expand.grid(a = group, b= group)
+SurragateList1 <- subset(SurragateList1, a != b)
+group <- as.numeric(as.character(unique(data$group[data$study==2])))
+SurragateList <- expand.grid(a = group, b= group)
+SurragateList2 <- subset(SurragateList, a != b)
+group <- as.numeric(as.character(unique(data$group[data$study==3])))
+SurragateList <- expand.grid(a = group, b= group)
+SurragateList3 <- subset(SurragateList, a != b)
+SurragateList <- rbind(SurragateList1, SurragateList2, SurragateList3)
+```
+ 
+ 
+```{r}
+for(i in 1:nrow(SurragateList)){
+  x<- subset(data, group == SurragateList$a[i])
+  y<- subset(data, group == SurragateList$b[i])
+  group <- c(800+((1:4)*i))
+  for(co in c("Synchronous", "TurnTaking", "SelfPaced", "Conversation")){
+    z1 <- subset(x, type == co)
+    z2 <- subset(y, type == co)
+  }
+  if (nrow(z1)> nrow(z2)){
+    z1 <- z1[-((nrow(z2)+1):nrow(z1)),]
+  }
+  if (nrow(z2)> nrow(z1)){
+    z2 <- z2[-((nrow(z1)+1):nrow(z2)),]
+  }
+  w1 <- z1 %>% mutate(
+    HR2 = z2$HR2,
+    Resp2 = z2$Resp2,
+    HR2_lead = z2$HR2_lead,
+    Resp2_lead = z2$Resp2_lead,
+    HR2_change = z2$HR2_change,
+    Resp2_change = z2$Resp2_change)
+  w1$group <- group[1]
+  w1$type <- "Surrogate"
+  w<- w1
+  if(exists("data_surrogate")){data_surrogate <- rbind(data_surrogate, w)}else{data_surrogate <- w}
+  }
+  
+}
+```
+ 
+ 
+ 
+```{r}
+#hR1
+sub_sur <- d_surrogate %>% dplyr::select(file:type, time_new, HR1, HR2) 
+
+sur1 <- sub_sur %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+sur1$ID <- paste0(sur1$group, sur1$ID)
+sur1$ID <- as.factor(sur1$ID)
+
+sur1 <- sur1 %>% dplyr::rename(HR_self = HR)
+
+#other hr
+
+sub_sur2 <- d_surrogate %>% dplyr::select(file:type, time_new, HR2, HR1) 
+
+sur2 <- sub_sur2 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+sur2$ID <- paste0(sur2$group, sur2$ID)
+sur2$ID <- as.factor(sur2$ID)
+
+sur2 <- sur2 %>% dplyr::rename(HR_other = HR) %>% dplyr::select(HR_other)
+
+df_sur <- cbind(sur1, sur2)
+
+#hr 1 lagged
+
+sub_sur3 <- d_surrogate %>% dplyr::select(file:type, time_new, HR1_lag, HR2_lag) 
+
+sur4 <- sub_sur3 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(\\D+)(\\d+)'
+  )
+
+sur4$ID <- paste0(sur4$group, sur4$ID)
+sur4$ID <- as.factor(sur4$ID)
+
+sur4 <- sur4 %>% dplyr::rename(HR_self_lag = HR)
+
+#hr2 lagged
+sub_sur3 <- d_surrogate %>% dplyr::select(file:type, time_new, HR2_lag, HR1_lag) 
+
+sur5 <- sub_sur3 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(\\D+)(\\d+)'
+  )
+
+sur5$ID <- paste0(sur5$group, sur5$ID)
+sur5$ID <- as.factor(sur5$ID)
+
+sur5 <- sur5 %>% dplyr::rename(HR_other_lag = HR) %>% dplyr::select(HR_other_lag)
+
+df_sur3 <- cbind(sur4, sur5)
+
+df_sur3 <- df_sur3 %>% dplyr::select(HR_self_lag, HR_other_lag)
+
+df_sur4 <- cbind(df_sur, df_sur3)
+
+###
+#resp 
+sub_surr <- d_surrogate %>% dplyr::select(file:type, time_new, Resp1, Resp2) 
+
+
+surr1 <- sub_surr %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+surr1$ID <- paste0(surr1$group, surr1$ID)
+surr1$ID <- as.factor(surr1$ID)
+surr1 <- surr1 %>% dplyr::rename(Resp_self = Resp)
+
+# resp other
+
+sub_surr1 <- d_surrogate %>% dplyr::select(file:type, time_new, Resp2, Resp1) 
+
+
+surr2 <- sub_surr1 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+surr2$ID <- paste0(surr2$group, surr2$ID)
+surr2$ID <- as.factor(surr2$ID)
+surr2 <- surr2 %>% dplyr::rename(Resp_other = Resp) %>% dplyr::select(Resp_other)
+
+df_sur5 <- cbind(surr1, surr2) %>% dplyr::select(Resp_self, Resp_other)
+
+#resp 1 lagged
+
+sub_surr2 <- d_surrogate %>% dplyr::select(file:type, time_new, Resp1_lag, Resp2_lag) 
+
+surr3 <- sub_surr2 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(\\D+)(\\d+)'
+  )
+
+surr3$ID <- paste0(surr3$group, surr3$ID)
+surr3$ID <- as.factor(surr3$ID)
+
+surr3 <- surr3 %>% dplyr::rename(Resp_self_lag = Resp)
+
+# resp 2 lagged
+sub_surr3 <- d_surrogate %>% dplyr::select(file:type, time_new, Resp2_lag, Resp1_lag) 
+
+surr4 <- sub_surr3 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(\\D+)(\\d+)'
+  )
+
+surr4$ID <- paste0(surr4$group, surr4$ID)
+surr4$ID <- as.factor(surr4$ID)
+
+surr4 <- surr4 %>% dplyr::rename(Resp_other_lag = Resp) %>% dplyr::select(Resp_other_lag)
+
+df_sur6 <- cbind(surr3, surr4)
+df_sur7 <- df_sur6 %>% dplyr::select(Resp_self_lag, Resp_other_lag)
+
+#merge all
+
+data_sur <- cbind(df_sur4, df_sur5, df_sur7)
+
+data_sur <- data_sur %>% select(-file...9) %>% dplyr::rename(file = file...1)
+
+#create change columns
+data_sur <- data_sur %>% 
+  mutate(HR_self_change = HR_self - HR_self_lag,
+         HR_other_change = HR_other - HR_other_lag,
+         Resp_self_change = Resp_self - Resp_self_lag,
+         Resp_other_change = Resp_other - Resp_other_lag)
+
+
+write_csv(data_sur, 'HR_data_long_sur.csv')
+
+```
+ 
+
+ 

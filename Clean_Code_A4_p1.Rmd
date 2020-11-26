@@ -691,10 +691,163 @@ for (i in 1:nrow(surrogate)){
     
   }
 }
+```
 
+```{r}
 # Make it into long format
-surrogate_data <- 
-  
+#surrogate_data 
+#hR1
+sub_sur <- d_surrogate %>% dplyr::select(file:type, time_new, HR1, HR2) 
+
+sur1 <- sub_sur %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+sur1$ID <- paste0(sur1$group, sur1$ID)
+sur1$ID <- as.factor(sur1$ID)
+
+sur1 <- sur1 %>% dplyr::rename(HR_self = HR)
+
+#other hr
+
+sub_sur2 <- d_surrogate %>% dplyr::select(file:type, time_new, HR2, HR1) 
+
+sur2 <- sub_sur2 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+sur2$ID <- paste0(sur2$group, sur2$ID)
+sur2$ID <- as.factor(sur2$ID)
+
+sur2 <- sur2 %>% dplyr::rename(HR_other = HR) %>% dplyr::select(HR_other)
+
+df_sur <- cbind(sur1, sur2)
+
+#hr 1 lagged
+
+sub_sur3 <- d_surrogate %>% dplyr::select(file:type, time_new, HR1_lag, HR2_lag) 
+
+sur4 <- sub_sur3 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(\\D+)(\\d+)'
+  )
+
+sur4$ID <- paste0(sur4$group, sur4$ID)
+sur4$ID <- as.factor(sur4$ID)
+
+sur4 <- sur4 %>% dplyr::rename(HR_self_lag = HR)
+
+#hr2 lagged
+sub_sur3 <- d_surrogate %>% dplyr::select(file:type, time_new, HR2_lag, HR1_lag) 
+
+sur5 <- sub_sur3 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(\\D+)(\\d+)'
+  )
+
+sur5$ID <- paste0(sur5$group, sur5$ID)
+sur5$ID <- as.factor(sur5$ID)
+
+sur5 <- sur5 %>% dplyr::rename(HR_other_lag = HR) %>% dplyr::select(HR_other_lag)
+
+df_sur3 <- cbind(sur4, sur5)
+
+df_sur3 <- df_sur3 %>% dplyr::select(HR_self_lag, HR_other_lag)
+
+df_sur4 <- cbind(df_sur, df_sur3)
+
+###
+#resp 
+sub_surr <- d_surrogate %>% dplyr::select(file:type, time_new, Resp1, Resp2) 
+
+
+surr1 <- sub_surr %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+surr1$ID <- paste0(surr1$group, surr1$ID)
+surr1$ID <- as.factor(surr1$ID)
+surr1 <- surr1 %>% dplyr::rename(Resp_self = Resp)
+
+# resp other
+
+sub_surr1 <- d_surrogate %>% dplyr::select(file:type, time_new, Resp2, Resp1) 
+
+
+surr2 <- sub_surr1 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(.+)(.+)'
+  )
+
+surr2$ID <- paste0(surr2$group, surr2$ID)
+surr2$ID <- as.factor(surr2$ID)
+surr2 <- surr2 %>% dplyr::rename(Resp_other = Resp) %>% dplyr::select(Resp_other)
+
+df_sur5 <- cbind(surr1, surr2) %>% dplyr::select(Resp_self, Resp_other)
+
+#resp 1 lagged
+
+sub_surr2 <- d_surrogate %>% dplyr::select(file:type, time_new, Resp1_lag, Resp2_lag) 
+
+surr3 <- sub_surr2 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(\\D+)(\\d+)'
+  )
+
+surr3$ID <- paste0(surr3$group, surr3$ID)
+surr3$ID <- as.factor(surr3$ID)
+
+surr3 <- surr3 %>% dplyr::rename(Resp_self_lag = Resp)
+
+# resp 2 lagged
+sub_surr3 <- d_surrogate %>% dplyr::select(file:type, time_new, Resp2_lag, Resp1_lag) 
+
+surr4 <- sub_surr3 %>%
+  pivot_longer(!file:time_new,
+    names_to = c(".value", "ID"),
+    names_pattern = '(\\D+)(\\d+)'
+  )
+
+surr4$ID <- paste0(surr4$group, surr4$ID)
+surr4$ID <- as.factor(surr4$ID)
+
+surr4 <- surr4 %>% dplyr::rename(Resp_other_lag = Resp) %>% dplyr::select(Resp_other_lag)
+
+df_sur6 <- cbind(surr3, surr4)
+df_sur7 <- df_sur6 %>% dplyr::select(Resp_self_lag, Resp_other_lag)
+
+#merge all
+
+data_sur <- cbind(df_sur4, df_sur5, df_sur7)
+
+data_sur <- data_sur %>% select(-file...9) %>% dplyr::rename(file = file...1)
+
+#create change columns
+data_sur <- data_sur %>% 
+  mutate(HR_self_change = HR_self - HR_self_lag,
+         HR_other_change = HR_other - HR_other_lag,
+         Resp_self_change = Resp_self - Resp_self_lag,
+         Resp_other_change = Resp_other - Resp_other_lag)
+
+
+write_csv(data_sur, 'HR_data_long_sur.csv')
+```
+
+
+
+
+
+```{r}  
 # Create models as in chunks above, but adding an interaction with the Real vs. Surrogate variable (exclude shuffled ones for simplicity)
 
 m1_surrogate <- lmerTest::lmer(HR_self_change ~ 0 + (HR_nself + HR_diff) : type : df_type + (0 + type| ID) + (0 + type| group), subset(surrogate_data, study=="4"), REML=F,control = lmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
