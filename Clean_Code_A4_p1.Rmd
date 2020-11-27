@@ -710,7 +710,7 @@ sur1$ID <- as.factor(sur1$ID)
 
 sur1 <- sur1 %>% dplyr::rename(HR_self = HR)
 
-#other hr
+#other hr 
 
 sub_sur2 <- d_surrogate %>% dplyr::select(file:type, time_new, HR2, HR1) 
 
