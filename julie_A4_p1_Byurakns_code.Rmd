@@ -812,28 +812,75 @@ m2 <- lmerTest::lmer(HR_change_self ~ 0 + (HR_self + HR_other) : type:df_type +(
 ```{r}
 # Identify unique pairs within a given study (to keep things manageable) and create list of possible surrogate pairs (e.g. individual 1 from pair 1 and individual 2 from pair 2)
 # Making a new dataframe with surrogate pair id's
-set.seed(125)
-sur <- df1 %>% 
-  #Grouping by study and trial
-  group_by(study,trial)
-  
-#Getting unique participant IDs
-sur <- summarise(ID == unique(ID))
 
-#Extracting info on whether they are par1 or par2 in a pair
-sur <- sur %>% 
-  mutate(par = str_extract(as.character(ID), "(\d)[^\d]*$"), sur)
+library(reshape2, rowr)
+hey <- read_csv("HR_data_na1.csv")
+df1 <- read_csv("HR_data_long.csv")
 
-#Making seperate columns for par1 and par2 
-pivot_wider(names_from = participant, values_from = participant, data = sur) 
-  
-# Renaming the variables
-rename(
-  par1 = 3,
-  par2 = 4
-) 
-  
-  
+df_study1 <- filter(hey, study == 1)
+df_study2 <- filter(hey, study == 2)
+df_study3 <- filter(hey, study == 3)
+df_study4 <- filter(hey, study == 4)
+
+
+df_study1$group <- as.factor(df_study1$group)
+df_study1$type <- as.factor(df_study1$type)
+g13_synch <- df_study1 %>% 
+  filter(group == 11 | group == 13) %>% 
+  filter(type == "Synchronous")
+
+
+
+sur13 <- g13_synch %>% 
+  filter(group == 13) %>% 
+  select(group, HR2, Resp2, time_new)
+
+real11 <- g13_synch %>% 
+  filter(group == 11) %>% 
+  select(group, HR1, Resp1, time_new)
+
+s1 <- merge(sur13, real11, by = "time_new",na.rm = F)
+
+sur11 <- g13_synch %>% 
+  filter(group == 11) %>% 
+  select(group, HR2, Resp2, time_new)
+
+real13 <- g13_synch %>% 
+  filter(group == 13) %>% 
+  select(group, HR1, Resp1, time_new)
+
+s2 <- merge(sur11, real13, by = "time_new",na.rm = F)
+
+
+#df_study1$group <- as.factor(df_study1$group)
+df_study1$type <- as.factor(df_study1$type)
+g13_synch <- df_study1 %>% 
+  filter(group == 12 | group == 14) %>% 
+  filter(type == "Synchronous")
+
+
+sur14 <- g13_synch %>% 
+  filter(group == 14) %>% 
+  select(group, HR2, Resp2, time_new)
+
+real12 <- g13_synch %>% 
+  filter(group == 12) %>% 
+  select(group, HR1, Resp1, time_new)
+
+s3 <- merge(sur14, real12, by = "time_new",na.rm = F)
+
+sur12 <- g13_synch %>% 
+  filter(group == 12) %>% 
+  select(group, HR2, Resp2, time_new)
+
+real14 <- g13_synch %>% 
+  filter(group == 14) %>% 
+  select(group, HR1, Resp1, time_new)
+
+s4 <- merge(sur12, real14, by = "time_new",na.rm = F)
+
+
+
 ```
 
 
